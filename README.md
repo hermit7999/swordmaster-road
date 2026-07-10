@@ -39,4 +39,7 @@ python -m http.server 5178 --directory .
 
 ## 상태
 
-T0-01~03, T0-04(검결 CommandCapture), T0-07~09 구현. 다음: T0-05 RhythmJudge → T0-06 InputArbiter → T0-10 좌수 미러 실증 → T0-11 실기 검증. 진행 이력은 `WORKLOG.md`.
+**M0 완료(조건부 통과)** — T0-01~11 전부 구현·검증(node 29/29, 자가진단 24/24). 라이브 배포됨. 잔여 = 테스터 3인 실기.
+**M1 착수** — Phaser 3 + TS + Vite 전환(획 8종·검술 6종·유파·수련·결전·승급). 태스크·완료기준은 [docs/작업지시서_v2.md](docs/작업지시서_v2.md).
+
+설계·요구사항은 [docs/설계서_v3.1.md](docs/설계서_v3.1.md) · [docs/SRS_v1.2.md](docs/SRS_v1.2.md), 진행 이력·검증 리포트는 [WORKLOG.md](WORKLOG.md).
