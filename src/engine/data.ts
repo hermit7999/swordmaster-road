@@ -16,6 +16,8 @@ export interface Balance {
   rejectRatio: number;
   classifyThreshold: number;
   classifyTieEps: number;
+  sectorHalfDeg: number;
+  angleErrorFullDeg: number;
   shape: {
     circleMinSweepDeg: number;
     circleMaxCV: number;

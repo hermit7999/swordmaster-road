@@ -6,6 +6,8 @@
   "rejectRatio": 0.035,
   "classifyThreshold": 0.34,
   "classifyTieEps": 0.02,
+  "sectorHalfDeg": 22.5,
+  "angleErrorFullDeg": 45,
   "shape": {
     "circleMinSweepDeg": 200,
     "circleMaxCV": 0.35,

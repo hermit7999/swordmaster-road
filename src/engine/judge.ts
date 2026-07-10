@@ -2,9 +2,25 @@
 // T1-02: shapeType(line/circle) 분기, lenBand 동률 판별, 속도/최소길이 오버라이드.
 import type { Pt, Grade, JudgeResult, Style, ShapeType } from './types';
 import { BALANCE, STROKE_TEMPLATES, STYLES } from './data';
-import { pathLength, bbox, resample, normalize, meanDist, mirrorPoints } from './geometry';
+import { pathLength, bbox, resample, normalize, mirrorPoints } from './geometry';
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+
+// 순각도(net angle, 화면좌표 y아래) [0,360). ↘=45°, ↓=90°, ←=180°, ↑=270°.
+function netAngleDeg(pts: Pt[]): number {
+  const a = pts[0], b = pts[pts.length - 1];
+  return (Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI + 360) % 360;
+}
+// 두 각도의 최소 차(도), 0~180.
+function angDistDeg(a: number, b: number): number {
+  let d = ((a - b + 180) % 360 + 360) % 360 - 180;
+  return Math.abs(d);
+}
+const _lineIdeal: Record<string, number> = {};
+export function lineIdealAngle(id: string): number {
+  if (_lineIdeal[id] != null) return _lineIdeal[id];
+  return (_lineIdeal[id] = netAngleDeg(STROKE_TEMPLATES[id].path.map(([x, y]) => ({ x, y }))));
+}
 
 const _tplCache: Record<string, Pt[]> = {};
 export function templatePoints(id: string): Pt[] {
@@ -12,14 +28,6 @@ export function templatePoints(id: string): Pt[] {
   const path = STROKE_TEMPLATES[id].path.map(([x, y]) => ({ x, y }));
   return (_tplCache[id] = normalize(resample(path, BALANCE.resample)));
 }
-// 직선(line) 후보만 point-wise 거리 비교(원은 특징 기반으로 분류).
-export function classifyLine(norm: Pt[]) {
-  return Object.keys(STROKE_TEMPLATES)
-    .filter(id => STROKE_TEMPLATES[id].shapeType === 'line')
-    .map(id => ({ strokeId: id, dist: meanDist(norm, templatePoints(id)) }))
-    .sort((a, b) => a.dist - b.dist);
-}
-
 // 원형 특징(회전 불변): 중심·반지름CV·부호있는 스윕·단조성·폐합.
 export interface CircleFeats { meanR: number; cv: number; sweepDeg: number; signSweep: number; monotonicity: number; closure: number }
 export function circleFeatures(pts: Pt[]): CircleFeats {
@@ -89,17 +97,23 @@ export function judgeStroke(raw: Pt[], meta: { w: number; h: number }, style: St
     if (!circleId) return { rejected: true, reason: 'unknown' };
     strokeId = circleId; shapeType = 'circle';
   } else {
-    const scored = classifyLine(norm);
-    const best = scored[0];
-    if (best.dist > BALANCE.classifyThreshold) return { rejected: true, reason: 'unknown', dist: best.dist };
-    // 형태 동률(거리 tieEps 이내) 후보 간 lenBand로 판별(찌르기↔횡베기 등).
-    const tie = scored.filter(s => s.dist <= best.dist + BALANCE.classifyTieEps);
-    let chosen = best.strokeId;
-    if (tie.length > 1) {
-      const inBand = tie.find(s => { const [lo, hi] = STROKE_TEMPLATES[s.strokeId].lenBand; return lengthRatio >= lo && lengthRatio <= hi; });
-      chosen = inBand ? inBand.strokeId : best.strokeId;
+    // 직선 획: net 각도 섹터 분류(±sectorHalfDeg, 획별 오버라이드). 흔들림/곡률에 강건. (버그3)
+    shapeType = 'line';
+    const netAng = netAngleDeg(rs);
+    const cand = Object.keys(STROKE_TEMPLATES)
+      .filter(id => STROKE_TEMPLATES[id].shapeType === 'line')
+      .map(id => ({ id, dAng: angDistDeg(netAng, lineIdealAngle(id)), half: STROKE_TEMPLATES[id].sectorHalfDeg ?? BALANCE.sectorHalfDeg }))
+      .filter(c => c.dAng <= c.half)
+      .sort((a, b) => a.dAng - b.dAng);
+    // ↖/↗ 등 획 없는 섹터 → 획 불명(결정 a). 형태가 line/circle 어디에도 안 맞을 때만 불명.
+    if (!cand.length) return { rejected: true, reason: 'unknown' };
+    // 같은 섹터 다수(h_lr/thrust는 둘 다 0°) → lenBand로 판별.
+    let chosen = cand[0].id;
+    if (cand.length > 1) {
+      const inBand = cand.find(c => { const [lo, hi] = STROKE_TEMPLATES[c.id].lenBand; return lengthRatio >= lo && lengthRatio <= hi; });
+      chosen = inBand ? inBand.id : cand[0].id;
     }
-    strokeId = chosen; shapeType = 'line'; dist = best.dist;
+    strokeId = chosen; dist = cand[0].dAng;
   }
 
   const spec = STROKE_TEMPLATES[strokeId];
@@ -120,6 +134,7 @@ export function judgeStroke(raw: Pt[], meta: { w: number; h: number }, style: St
   if (shapeType === 'circle') {
     dir01 = feats.signSweep === _circleExpectedSign ? feats.monotonicity : 0;          // 반대방향=0
   } else {
+    // 방향 40% = 국소 방향 일치도(L, 흔들림 감점) × 이상각 오차 점수(A, net 각도 감점). 둘 다 반영. (버그3)
     const tpl = templatePoints(strokeId);
     const tVec = { x: tpl[tpl.length - 1].x - tpl[0].x, y: tpl[tpl.length - 1].y - tpl[0].y };
     const tLen = Math.hypot(tVec.x, tVec.y) || 1;
@@ -131,7 +146,13 @@ export function judgeStroke(raw: Pt[], meta: { w: number; h: number }, style: St
       if (sl < 1e-9) continue;
       dsum += Math.max(0, (sx * tux + sy * tuy) / sl); dcnt++;
     }
-    dir01 = dcnt ? dsum / dcnt : 0;
+    const L = dcnt ? dsum / dcnt : 0;
+    const iVec = { x: rs[rs.length - 1].x - rs[0].x, y: rs[rs.length - 1].y - rs[0].y };
+    const iLen = Math.hypot(iVec.x, iVec.y) || 1;
+    const cosNet = Math.max(-1, Math.min(1, (iVec.x * tux + iVec.y * tuy) / iLen));
+    const errDeg = Math.acos(cosNet) * 180 / Math.PI;
+    const A = Math.max(0, 1 - errDeg / BALANCE.angleErrorFullDeg);   // 13°→0.71, 45°→0
+    dir01 = L * A;
   }
   // ---- 속도 15% (획별 오버라이드) ----
   const spd = spec.speedMs ?? BALANCE.speedIdeal;

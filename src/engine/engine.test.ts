@@ -127,6 +127,45 @@ describe('T0-10 좌수 품질 동등성 + 클러스터', () => {
   it('좌수 ↑↓ 클러스터=좌측', () => expect(STYLES.saken.updownCluster).toBe('left'));
 });
 
+// 버그3: net 각도 섹터 분류 + 방향점수 = 국소 × 이상각 오차
+function lineAtAngle(deg: number, len = 380, n = 40): Pt[] {
+  const th = deg * Math.PI / 180, dx = Math.cos(th), dy = Math.sin(th), cx = 400, cy = 225;
+  const out: Pt[] = [];
+  for (let i = 0; i < n; i++) { const u = i / (n - 1) - 0.5; out.push({ x: cx + dx * len * u, y: cy + dy * len * u, t: 300 * (u + 0.5) }); }
+  return out;
+}
+describe('버그3 사선 섹터 분류 + 이상각 감점', () => {
+  it('↘(down-right 45°)는 양수 각도 → diag_dr', () => {
+    const r = judgeStroke(lineAtAngle(45), META);
+    expect(r.strokeId).toBe('diag_dr');
+    expect(r.breakdown!.direction).toBeGreaterThan(0.98);  // 이상각과 일치 → 방향 만점
+  });
+  it('22° → 횡베기(섹터 경계 아래) + 방향 감점', () => {
+    const r = judgeStroke(lineAtAngle(22), META);
+    expect(r.strokeId).toBe('h_lr');
+    expect(r.breakdown!.direction).toBeLessThan(0.6);       // 22° 오차 → 크게 감점
+  });
+  it('30° → 사선(섹터 안) + 이상각 15° 감점', () => {
+    const r = judgeStroke(lineAtAngle(30), META);
+    expect(r.strokeId).toBe('diag_dr');
+    expect(r.breakdown!.direction).toBeGreaterThan(0.5);
+    expect(r.breakdown!.direction).toBeLessThan(0.75);      // 45° 대비 15° 오차 감점
+  });
+  it('60° → 사선 (섹터 안)', () => expect(judgeStroke(lineAtAngle(60), META).strokeId).toBe('diag_dr'));
+  it('68° → 내려찍기(섹터 경계 위)', () => expect(judgeStroke(lineAtAngle(68), META).strokeId).toBe('v_down'));
+  it('13° 곧은 획도 각도 틀리면 방향 감점(과거 ~100 → 이제 감점)', () => {
+    const r = judgeStroke(lineAtAngle(13), META);
+    expect(r.strokeId).toBe('h_lr');
+    expect(r.breakdown!.direction).toBeLessThan(0.8);       // A=1−13/45=0.71 반영
+    expect(r.accuracy!).toBeLessThan(100);                  // 총점도 감점(퍼펙트 아님)
+  });
+  it('↖/↗(획 없는 섹터)는 획 불명', () => {
+    const r = judgeStroke(lineAtAngle(-45), META);          // -45° = ↗ up-right(315°)
+    expect(r.rejected).toBe(true);
+    expect(r.reason).toBe('unknown');
+  });
+});
+
 describe('T1-02 획 8종 (검로)', () => {
   it('h_lr 횡베기(좌→우)', () => expect(judgeStroke(synthLine([100, 225], [700, 225], 40, 300), META).strokeId).toBe('h_lr'));
   it('h_rl 횡베기(우→좌)', () => expect(judgeStroke(synthLine([700, 225], [100, 225], 40, 300), META).strokeId).toBe('h_rl'));

@@ -16,6 +16,7 @@ export interface StrokeSpec {
   // 오버라이드(미지정 시 balance 전역): 획별로 판정 파라미터 조정. 코드 하드코딩 금지 — 전부 strokes.json.
   minLenRatio?: number;             // 예: 찌르기 0.05
   speedMs?: { min: number; max: number };  // 예: 찌르기 60~300
+  sectorHalfDeg?: number;           // 각도 섹터 반폭 오버라이드(기본 balance.sectorHalfDeg 22.5). T2/버그3
 }
 export interface Style {
   name: string;
