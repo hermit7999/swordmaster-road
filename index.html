@@ -8,6 +8,31 @@
 <body>
   <div id="app">
     <div id="sceneBg"></div>
+    <div id="title">
+      <div id="titleArt"></div>
+      <div id="titleInner">
+        <h1 id="titleName">소드마스터의 길</h1>
+        <div id="titleSub">劍이 곧 눈이니, 보고서 응하라</div>
+        <div id="titleTap">— 화면을 탭하여 시작 —</div>
+        <div id="titleMenu">
+          <button id="tNew">새 게임</button>
+          <button id="tContinue">이어하기</button>
+          <button id="tSettings">설정</button>
+          <button id="tFeedback">피드백</button>
+        </div>
+      </div>
+    </div>
+    <div id="settings">
+      <div id="setInner">
+        <h2>설정</h2>
+        <div class="setRow"><span>소리</span><div class="setOpts" data-key="sound"></div></div>
+        <div class="setRow"><span>진동(햅틱)</span><div class="setOpts" data-key="haptic"></div></div>
+        <div class="setRow"><span>판정 난이도</span><div class="setOpts" data-key="difficulty"></div></div>
+        <div class="setRow"><span>대화 속도</span><div class="setOpts" data-key="dlgSpeed"></div></div>
+        <div class="setRow"><span>가상키 크기</span><div class="setOpts" data-key="padSize"></div></div>
+        <button id="setClose">닫기</button>
+      </div>
+    </div>
     <div id="hud">
       <div id="gradeBox">
         <div id="grade">—</div>

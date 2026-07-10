@@ -15,6 +15,20 @@ const canvas = document.querySelector('#ink') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
 let W = 0, H = 0, currentStyle: Style = STYLES.uraken, currentStyleId = 'uraken';
 let soundOn = true, overlayOn = true;
+// T2-07 설정(전역, 저장과 별도 키). 판정난이도=전투 응수창 배율, 대화속도=자동진행 배율, 가상키크기=패드 스케일.
+let hapticOn = true, difficultyEase = 1, dlgSpeedMul = 1;
+const SETTINGS_KEY = 'sm_settings_v1';
+const settings: { sound: boolean; haptic: boolean; difficulty: string; dlgSpeed: string; padSize: string } =
+  { sound: true, haptic: true, difficulty: 'standard', dlgSpeed: 'normal', padSize: 'normal' };
+function applySettings() {
+  soundOn = settings.sound; hapticOn = settings.haptic;
+  difficultyEase = BALANCE.difficultyEase[settings.difficulty] ?? 1;
+  dlgSpeedMul = BALANCE.dialogueSpeed[settings.dlgSpeed] ?? 1;
+  document.documentElement.style.setProperty('--pad-scale', String(BALANCE.padScale[settings.padSize] ?? 1));
+  const bs = document.querySelector('#btnSound'); if (bs) { bs.classList.toggle('active', soundOn); bs.textContent = '소리 ' + (soundOn ? 'ON' : 'OFF'); }
+}
+function loadSettings() { try { const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null'); if (s) Object.assign(settings, s); } catch (_) { /* noop */ } applySettings(); }
+function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (_) { /* noop */ } }
 // 숙련은 전 획을 데이터에서 파생(하드코딩 금지). 획 추가 시 자동 반영.
 const mastery: Record<string, number> = Object.fromEntries(Object.keys(STROKE_TEMPLATES).map(k => [k, 0]));
 
@@ -57,7 +71,7 @@ function playGrade(grade: Grade) {
   } catch (e) { /* noop */ }
 }
 function haptic(grade: Grade) {
-  if (!navigator.vibrate) return;
+  if (!hapticOn || !navigator.vibrate) return;
   navigator.vibrate(grade === 'perfect' ? [8, 30, 8] : grade === 'miss' ? 90 : grade === 'bad' ? 45 : 18);
 }
 // 메트로놈(T0-05): 목검 비트.
@@ -343,6 +357,7 @@ function pickAttack() {
     const mastered = (mastery[e.signature] || 0) >= me.threshold;
     cbAttackWindow = Math.round(cbRespondMs * (mastered ? me.easyScale : me.hardScale));
   }
+  cbAttackWindow = Math.round(cbAttackWindow * difficultyEase);   // 설정: 판정 난이도(관대=창 넓음)
 }
 function signatureHint(): string {
   if (!cbSignatureNow || !cbEnemy.signature) return '';
@@ -378,7 +393,7 @@ function cbEncounter() {
   playCue(a.dir);
   awaitingParry = true;
   if (soundOn) playTick();
-  const win = CB().kinds.encounter.windowMs ?? cbRespondMs;
+  const win = (CB().kinds.encounter.windowMs ?? cbRespondMs) * difficultyEase;   // 설정: 판정 난이도
   cbTimer = setTimeout(() => combatOnParry(null), win) as unknown as number;
 }
 function cbEncounterResolve(ev: StrokeEvent | null) {
@@ -728,7 +743,7 @@ function dlgRender() {
     return;
   }
   if (line.stroke) { $('#dialogue').classList.add('stroke'); dlgAwaitStroke = true; return; }
-  if (dlgAuto) dlgAutoTimer = setTimeout(dlgAdvance, 1800 + (line.text?.length || 0) * 45) as unknown as number;
+  if (dlgAuto) dlgAutoTimer = setTimeout(dlgAdvance, (1800 + (line.text?.length || 0) * 45) * dlgSpeedMul) as unknown as number;   // 설정: 대화 속도
 }
 function dlgAdvance() {
   if (!dlgActive) return;
@@ -953,7 +968,7 @@ function toast(msg: string) {
 }
 
 /* ---- 컨트롤 ---- */
-$('#btnSound').addEventListener('click', e => { soundOn = !soundOn; const b = e.target as HTMLElement; b.classList.toggle('active', soundOn); b.textContent = '소리 ' + (soundOn ? 'ON' : 'OFF'); });
+$('#btnSound').addEventListener('click', () => { settings.sound = !settings.sound; applySettings(); saveSettings(); });
 $('#btnOverlay').addEventListener('click', e => { overlayOn = !overlayOn; const b = e.target as HTMLElement; b.classList.toggle('active', overlayOn); b.textContent = '오버레이 ' + (overlayOn ? 'ON' : 'OFF'); });
 // T2-05: 유파는 스토리에서 1회 선택되고 진행 중 잠금(FR-STY-007). 저장 데이터에 styleId 기록.
 // 상단 일반 토글은 제거하고 자가진단(개발용)에만 남긴다. 재선택은 회차 시작(새 게임)에서만.
@@ -1041,7 +1056,56 @@ function runSelfTest() {
   console.log(`[소드마스터 자가진단] ${passed}/${T.length} 통과`);
 }
 
+/* ---- T2-07 타이틀 + 설정 ---- */
+let hasSave = false;
+function unlockAudio() { try { audio = audio || new (AC())(); if (audio.state === 'suspended') audio.resume(); } catch (_) { /* noop */ } }
+function showTitle() {
+  $('#title').classList.add('on'); $('#title').classList.remove('started');
+  ($('#tContinue') as HTMLButtonElement).disabled = !hasSave;
+  loadArt('bg_title').then(img => { if (img) ($('#titleArt')).style.backgroundImage = `url("${artUrl('bg_title')}")`; });
+}
+function hideTitle() { $('#title').classList.remove('on', 'started'); }
+$('#title').addEventListener('click', () => { if (!$('#title').classList.contains('started')) { unlockAudio(); $('#title').classList.add('started'); } });
+let newArm = false, newTimer: number | undefined;
+$('#tNew').addEventListener('click', ev => {
+  ev.stopPropagation(); const b = $('#tNew');
+  if (hasSave && !newArm) { newArm = true; b.textContent = '기존 기록 삭제 · 다시 탭'; clearTimeout(newTimer); newTimer = setTimeout(() => { newArm = false; b.textContent = '새 게임'; }, 2600) as unknown as number; return; }
+  newArm = false; clearTimeout(newTimer); b.textContent = '새 게임';
+  hideTitle(); resetGame(); hasSave = true; maybeStartPrologue();
+});
+$('#tContinue').addEventListener('click', ev => { ev.stopPropagation(); if (!hasSave) return; hideTitle(); enterMap(); });
+$('#tSettings').addEventListener('click', ev => { ev.stopPropagation(); openSettings(); });
+$('#tFeedback').addEventListener('click', ev => { ev.stopPropagation(); const url = BALANCE.links.feedback; if (url) window.open(url, '_blank', 'noopener'); else toast('피드백 링크는 준비 중입니다'); });
+
+const SET_OPTS: Record<string, [string, string][]> = {
+  sound: [['on', '켜기'], ['off', '끄기']], haptic: [['on', '켜기'], ['off', '끄기']],
+  difficulty: [['standard', '표준'], ['lenient', '관대']],
+  dlgSpeed: [['slow', '느림'], ['normal', '보통'], ['fast', '빠름']],
+  padSize: [['small', '작게'], ['normal', '보통'], ['large', '크게']],
+};
+function curSet(key: string): string {
+  if (key === 'sound') return settings.sound ? 'on' : 'off';
+  if (key === 'haptic') return settings.haptic ? 'on' : 'off';
+  return (settings as unknown as Record<string, string>)[key];
+}
+function renderSettings() {
+  document.querySelectorAll('#settings .setOpts').forEach(box => {
+    const key = (box as HTMLElement).dataset.key!; const cur = curSet(key);
+    box.innerHTML = SET_OPTS[key].map(([v, l]) => `<button data-v="${v}" class="${v === cur ? 'sel' : ''}">${l}</button>`).join('');
+    box.querySelectorAll('button').forEach(bt => bt.addEventListener('click', () => setSetting(key, (bt as HTMLElement).dataset.v!)));
+  });
+}
+function setSetting(key: string, v: string) {
+  if (key === 'sound') settings.sound = v === 'on';
+  else if (key === 'haptic') settings.haptic = v === 'on';
+  else (settings as unknown as Record<string, string>)[key] = v;
+  applySettings(); saveSettings(); renderSettings();
+}
+function openSettings() { renderSettings(); $('#settings').classList.add('on'); }
+$('#setClose').addEventListener('click', () => $('#settings').classList.remove('on'));
+
 /* ---- 부트 ---- */
 resize(); buildPad(); draw(); updateTech(null); runSelfTest();
-loadGame();             // T2-02: 이어하기 로드(PAD 상수·buildPad 초기화 이후 — setStyle 안전)
-maybeStartPrologue();   // T2-05: 새 게임이면 프롤로그→유파 선택→스테이지1 진입
+loadSettings();                 // T2-07: 전역 설정
+hasSave = loadGame();           // T2-02: 이어하기 로드(PAD·buildPad 이후 — setStyle 안전)
+showTitle();                    // T2-07: 타이틀 → 새 게임/이어하기 분기

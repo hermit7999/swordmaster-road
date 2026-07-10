@@ -41,6 +41,10 @@
     "startGold": 20
   },
   "art": { "bgOverlay": 0.30, "bgOverlayCombat": 0.40, "bgBrightness": 1.12, "titleGradient": 0.85, "hitFlashMs": 200 },
+  "links": { "feedback": "" },
+  "difficultyEase": { "standard": 1.0, "lenient": 1.25 },
+  "dialogueSpeed": { "slow": 1.5, "normal": 1.0, "fast": 0.55 },
+  "padScale": { "small": 0.82, "normal": 1.0, "large": 1.22 },
   "weights": { "direction": 0.40, "straight": 0.30, "speed": 0.15, "completion": 0.15 },
   "simulMs": 70,
   "commandResolveMs": 640,

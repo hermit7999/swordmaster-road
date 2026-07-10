@@ -49,6 +49,10 @@ export interface Balance {
     startGold: number;
   };
   art: { bgOverlay: number; bgOverlayCombat: number; bgBrightness: number; titleGradient: number; hitFlashMs: number };
+  links: { feedback: string };
+  difficultyEase: Record<string, number>;
+  dialogueSpeed: Record<string, number>;
+  padScale: Record<string, number>;
   weights: { direction: number; straight: number; speed: number; completion: number };
   simulMs: number;
   commandResolveMs: number;
