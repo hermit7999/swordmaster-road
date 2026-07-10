@@ -48,7 +48,7 @@ export interface Balance {
     xpPerWin: Record<string, number>;
     startGold: number;
   };
-  art: { bgOverlay: number; bgOverlayCombat: number; titleGradient: number; hitFlashMs: number };
+  art: { bgOverlay: number; bgOverlayCombat: number; bgBrightness: number; titleGradient: number; hitFlashMs: number };
   weights: { direction: number; straight: number; speed: number; completion: number };
   simulMs: number;
   commandResolveMs: number;

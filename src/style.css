@@ -157,6 +157,11 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
   border-radius: 7px; padding: 4px 10px; cursor: pointer; pointer-events: auto; }
 #trialRetry { display: none; }
 
+/* 지도가 열리면 하위 씬/스테이지 오버레이를 완전히 가림(비침 방지). 지도 배경(#sceneBg)만 노출. */
+#app.map-open #train, #app.map-open #combat, #app.map-open #trial,
+#app.map-open #pad, #app.map-open #comboBox, #app.map-open #cmdToast,
+#app.map-open #hint, #app.map-open #beatDot { visibility: hidden; }
+
 /* 노드 맵(T2-01) */
 #map { position: absolute; inset: 40px 12px 12px 12px; z-index: 30; display: none;
   flex-direction: column; align-items: center; gap: 10px;
@@ -234,9 +239,19 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
   border: 1px solid var(--line); border-radius: 7px; padding: 4px 10px; cursor: pointer; }
 #dlgCtrl button.active { color: var(--gold); border-color: var(--gold); }
 
-/* 자가진단 패널 */
-#diag { position: absolute; left: 12px; bottom: 12px; z-index: 25; max-width: 46%; pointer-events: none;
-  font-size: 10.5px; line-height: 1.5; color: var(--bone); background: rgba(22,19,15,.9);
-  border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: none; max-height: 44%; overflow: auto; }
+/* 자가진단 패널(개발용) — 씬 위에서 튜닝 가능하도록 최상위. 내부 위젯만 터치 활성. */
+#diag { position: absolute; left: 12px; bottom: 12px; z-index: 50; max-width: 56%; pointer-events: none;
+  font-size: 10.5px; line-height: 1.5; color: var(--bone); background: rgba(22,19,15,.92);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: none; max-height: 60%; overflow: auto; }
 #diag .pass { color: #7fb98a; } #diag .fail { color: var(--blood); }
 #diag h4 { margin: 0 0 4px; font-size: 11px; color: var(--gold); }
+#diag button, #diag input { pointer-events: auto; }
+.devrow { margin: 4px 0; }
+.devrow button, .devtune { pointer-events: auto; }
+.devtune { margin: 4px 0 8px; padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: rgba(0,0,0,.25); }
+.devtune label { display: block; margin: 4px 0; color: var(--bone); }
+.devtune b { color: var(--gold); }
+.devtune input[type=range] { width: 100%; margin-top: 2px; accent-color: var(--gold); }
+.devtune .tunehint { font-size: 9.5px; opacity: .6; margin-top: 4px; }
+#devStyle { font-size: 10.5px; color: var(--gold); background: rgba(0,0,0,.3); border: 1px solid var(--gold);
+  border-radius: 6px; padding: 3px 8px; cursor: pointer; }

@@ -8,7 +8,7 @@ import {
 } from './engine';
 import type { Dialogue, DlgLine } from './engine';
 import type { Pt, Dir, Grade, Style, StrokeEvent, CommandInput, Enemy, EnemyAttack } from './engine';
-import { loadArt, setSceneBg, artUrl } from './art';
+import { loadArt, setSceneBg, artUrl, tuneArt, artTuneState } from './art';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const canvas = document.querySelector('#ink') as HTMLCanvasElement;
@@ -612,12 +612,13 @@ function restoreCheckpoint() {
 }
 
 function enterMap() {
-  mapActive = true; $('#map').classList.add('on'); $('#hint').style.display = 'none'; $('#btnMap').classList.add('active');
+  mapActive = true; $('#map').classList.add('on'); $('#app').classList.add('map-open');   // 하위 씬 UI 가림
+  $('#hint').style.display = 'none'; $('#btnMap').classList.add('active');
   $('#mapTitle').textContent = STAGE.name;
   setSceneBg('bg_nodemap');
   renderMap();
 }
-function exitMap() { mapActive = false; $('#map').classList.remove('on'); $('#btnMap').classList.remove('active'); setSceneBg(null); }
+function exitMap() { mapActive = false; $('#map').classList.remove('on'); $('#app').classList.remove('map-open'); $('#btnMap').classList.remove('active'); setSceneBg(null); }
 function renderMap() {
   const nodes = STAGE.nodes;
   const cur = nodes[mapCurrent];
@@ -1020,10 +1021,23 @@ function runSelfTest() {
   add('좌수 품질동등: 내려찍기', parity(line([400, 40], [400, 420], 40, 320), 'v_down'));
   add('좌수 ↑↓ 클러스터=좌측', STYLES.saken.updownCluster === 'left' && STYLES.uraken.updownCluster === 'right');
   const passed = T.filter(t => t.ok).length;
+  const ts = artTuneState();
+  const curOverlay = ts.curCombat ? ts.overlayC : ts.overlayN;
   $('#diag').innerHTML = `<h4>자가진단 ${passed}/${T.length} 통과</h4>` +
     `<div class="devrow"><button id="devStyle">[개발] 유파 전환 · 현재: ${currentStyle.name}</button></div>` +
+    `<div class="devtune">
+       <label>먹빛 오버레이 <b id="ovVal">${curOverlay.toFixed(2)}</b> <small>(${ts.curCombat ? '전투' : '일반'}${ts.hasBg ? '' : ' · 배경 없음'})</small>
+         <input id="ovSlide" type="range" min="0" max="0.8" step="0.02" value="${curOverlay}"></label>
+       <label>배경 밝기 <b id="brVal">${ts.brightness.toFixed(2)}</b>
+         <input id="brSlide" type="range" min="0.8" max="1.4" step="0.02" value="${ts.brightness}"></label>
+       <div class="tunehint">씬(전투/수련 등)을 연 채로 조정 → 적정값을 보고해 주세요. 일반 ${ts.overlayN.toFixed(2)} · 전투 ${ts.overlayC.toFixed(2)}</div>
+     </div>` +
     T.map(t => `<div class="${t.ok ? 'pass' : 'fail'}">${t.ok ? '✓' : '✗'} ${t.name}${t.extra != null ? ' · ' + t.extra : ''}</div>`).join('');
   const ds = document.querySelector('#devStyle'); if (ds) ds.addEventListener('click', devToggleStyle);
+  const ov = document.querySelector('#ovSlide') as HTMLInputElement | null;
+  const br = document.querySelector('#brSlide') as HTMLInputElement | null;
+  if (ov) ov.addEventListener('input', () => { const v = parseFloat(ov.value); tuneArt({ overlay: v }); const e = document.querySelector('#ovVal'); if (e) e.textContent = v.toFixed(2); });
+  if (br) br.addEventListener('input', () => { const v = parseFloat(br.value); tuneArt({ brightness: v }); const e = document.querySelector('#brVal'); if (e) e.textContent = v.toFixed(2); });
   console.log(`[소드마스터 자가진단] ${passed}/${T.length} 통과`);
 }
 

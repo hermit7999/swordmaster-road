@@ -354,3 +354,10 @@ OI-12(원무 커맨드 난이도)는 원무가 M1 범위라 M0 DoD 아님(보류
   · pickAttack()로 조우/정예/결전 공통 출제 + 시그니처 창 계산 통합.
   · 검증(브라우저 실증): 보스=일섬귀(boss_stage1), 시그니처 미숙 창 1496ms+"눈 깜짝할 새" / 숙련(v_up=20) 창 2860ms+"간파" — 숙련 여부가 난이도로 체감(완료 기준). b2=낭인검객(enemy_swordsman) 라우팅 확인. tsc 무경고·vitest 111/111·build OK.
   · 미완: 정예/일섬귀 전용 대사 초상 없음(이름만). 절대 HP/데미지 밸런스·시그니처 임계는 T2-08 튜닝.
+
+- 2026-07-10 [Claude] 아트 표시 조정 3건 (오버레이·씬겹침·교체구조)
+  · 오버레이 과함: balance.art 기본값 일반 0.52→0.30·전투 0.62→0.40, bgBrightness 1.12 추가. art.ts에 밝기 필터 적용. 자가진단 패널에 오버레이(0~0.8)·밝기(0.8~1.4) 실시간 슬라이더 — 씬 연 채 조정, 확정값 보고받아 balance 반영 예정. tuneArt()/artTuneState() + curBg 상태 보관(재도색).
+  · 씬 겹침: 지도 열면 #app.map-open 클래스로 하위 씬(#train/#combat/#trial)·스테이지 오버레이(#pad/#comboBox/#cmdToast/#hint/#beatDot) visibility:hidden — 비침 제거. 닫으면 복원. 지도 배경(#sceneBg nodemap)만 노출.
+  · bg_nodemap 영어 지명: 사용자가 raw PNG를 영어 없는 양피지 지도로 교체 → webp 재생성(Pillow, 136KB)해 반영. 로더는 파일명 참조라 이후 덮어써도 재생성만 하면 반영되는 구조.
+  · #diag z-index 25→50(씬 위 튜닝), 내부 위젯만 pointer-events auto(규칙 #8 유지).
+  · 검증(브라우저 실증): 전투 오버레이 0.40+brightness 1.12, 슬라이더 라이브(오버레이 0.16·밝기 1.30 즉시 반영), 지도 열면 수련/패드/콤보 hidden·닫으면 복원. vitest 111/111·tsc 무경고·build OK.
