@@ -2,8 +2,9 @@
 import './style.css';
 import {
   BALANCE, STROKE_TEMPLATES, STYLES, ENEMIES, TRIALS, STAGES,
+  CONSUMABLES, SWORDS, ITEMS,
   judgeStroke, recognizeCommand, judgeRhythm, gradeOf, createTechniqueTracker,
-  bbox, resample, otherStyle,
+  bbox, resample, otherStyle, levelFromXp, xpToNext, derivedStats,
 } from './engine';
 import type { Pt, Dir, Grade, Style, StrokeEvent, CommandInput, Enemy, EnemyAttack } from './engine';
 
@@ -279,14 +280,14 @@ function finishTraining() {
 
 /* ---- T1-07 결전(決戰) 전투 씬 (DOM). 관찰(觀察)→응수(應手)→해소(解消) FSM ---- */
 let combatActive = false, awaitingParry = false;
-let cbEnemy: Enemy, cbEnemyHpMax = 0, cbEnemyHp = 0, cbPlayerHp = 0, cbMana = 0;
+let cbEnemy: Enemy, cbEnemyHpMax = 0, cbEnemyHp = 0, cbPlayerHp = 0, cbPlayerHpMax = 60, cbMana = 0;
 let cbAttack: EnemyAttack | null = null;
 let cbTimer: number | undefined;
 const CB = () => BALANCE.combat;
 const cbTxt = (sel: string, v: string) => { $(sel).textContent = v; };
 function cbBars() {
   ($('#cbEnemyHp')).style.width = Math.max(0, cbEnemyHp / cbEnemyHpMax * 100) + '%';
-  ($('#cbPlayerHp')).style.width = Math.max(0, cbPlayerHp / CB().playerHp * 100) + '%';
+  ($('#cbPlayerHp')).style.width = Math.max(0, cbPlayerHp / cbPlayerHpMax * 100) + '%';
   ($('#cbMana')).style.width = Math.max(0, cbMana / CB().manaMax * 100) + '%';
 }
 // 방향별 오디오 큐 — 소리만으로 응수 방향 인지 가능(FR-FBK).
@@ -312,8 +313,9 @@ function enterCombat(enemyId = 'goblin', kind: 'encounter' | 'elite' | 'boss' = 
   const k = CB().kinds[kind] ?? CB().kinds.boss;
   cbEnemy = ENEMIES[enemyId];
   cbEnemyHpMax = Math.max(1, Math.round(cbEnemy.hp * (k.hpMul ?? 1))); cbEnemyHp = cbEnemyHpMax;
-  cbPlayerHp = CB().playerHp; cbMana = CB().startMana;
+  cbPlayerHpMax = playerStats().hpMax; cbPlayerHp = cbPlayerHpMax; cbMana = CB().startMana;
   cbRespondMs = k.respondMs ?? CB().respondMs;
+  renderCombatItems();
   combatActive = true; awaitingParry = false; combatResult = 'quit';   // 중도이탈 기본
   $('#combat').classList.add('on'); $('#hint').style.display = 'none'; $('#btnCombat').classList.add('active');
   cbTxt('#cbEnemyName', cbEnemy.name); cbBars();
@@ -341,8 +343,9 @@ function cbEncounterResolve(ev: StrokeEvent | null) {
   const ok = !!ev && ev.strokeId === a.counter && (ev.grade === 'good' || ev.grade === 'great' || ev.grade === 'perfect');
   cbEnemyHp = 0; cbBars();
   cbTxt('#cbPhase', ok ? '섬광(閃光)' : '스침(掠)');
-  if (ok) cbTxt('#cbLog', `⚡ 섬광 일격! ${a.counterName}(${ev!.grade}) — 적을 단칼에 베고 지나쳤다`);
-  else { const what = ev ? (STROKE_TEMPLATES[ev.strokeId]?.name ?? ev.strokeId) : '무입력'; cbTxt('#cbLog', `✗ 빗나갔다(${what}) — ${a.name}에 스쳤으나 돌파했다`); }
+  const r = grantReward('encounter');
+  if (ok) cbTxt('#cbLog', `⚡ 섬광 일격! ${a.counterName}(${ev!.grade}) — 적을 베고 지나쳤다 · ${r}`);
+  else { const what = ev ? (STROKE_TEMPLATES[ev.strokeId]?.name ?? ev.strokeId) : '무입력'; cbTxt('#cbLog', `✗ 빗나갔다(${what}) — ${a.name}에 스쳤으나 돌파했다 · ${r}`); }
   combatWon = true; combatResult = 'win';   // 조우는 돌파(노드 완료)
   cbTimer = setTimeout(exitCombat, 1400) as unknown as number;
 }
@@ -362,13 +365,15 @@ function cbObserve() {
   cbTxt('#cbPhase', '관찰(觀察)');
   cbTxt('#cbTele', `적: ${cbAttack.name} ${cbAttack.dir} — 응수: ${cbAttack.counterName}`);
   playCue(cbAttack.dir);
+  cbCanUseItem = true; renderCombatItems();   // 관찰 페이즈에만 아이템 사용 가능
   cbTimer = setTimeout(cbRespond, CB().observeMs) as unknown as number;
 }
 function cbRespond() {
   cbTxt('#cbPhase', '응수(應手) — 지금!');
-  awaitingParry = true;
+  awaitingParry = true; cbCanUseItem = false; renderCombatItems();
   if (soundOn) playTick();  // "지금" 신호
-  cbTimer = setTimeout(() => combatOnParry(null), cbRespondMs) as unknown as number;
+  const bonus = cbRespondBonus; cbRespondBonus = 0;   // 안법부적: 이번 응수 창만 연장
+  cbTimer = setTimeout(() => combatOnParry(null), cbRespondMs + bonus) as unknown as number;
 }
 function combatOnParry(ev: StrokeEvent | null) {
   if (!awaitingParry) return;
@@ -378,7 +383,7 @@ function combatOnParry(ev: StrokeEvent | null) {
   const ok = !!ev && ev.strokeId === a.counter && (ev.grade === 'good' || ev.grade === 'great' || ev.grade === 'perfect');
   cbTxt('#cbPhase', '해소(解消)');
   if (ok) {
-    const dmg = CB().parryDamage[ev!.grade as 'good' | 'great' | 'perfect'];
+    const dmg = CB().parryDamage[ev!.grade as 'good' | 'great' | 'perfect'] + playerStats().power;  // T2-04 위력 반영
     cbEnemyHp -= dmg;
     cbMana = Math.min(CB().manaMax, cbMana + (ev!.grade === 'perfect' ? CB().manaRecoverPerfect : CB().manaRecoverHit));
     cbTxt('#cbLog', `⚔ 반격! ${a.counterName}(${ev!.grade}) · 적 HP −${dmg}` + (ev!.grade === 'perfect' ? ' · 마나 회복+' : ''));
@@ -393,9 +398,31 @@ function combatOnParry(ev: StrokeEvent | null) {
 function cbEnd(win: boolean) {
   combatWon = win; combatResult = win ? 'win' : 'lose';
   cbTxt('#cbPhase', win ? '승리(勝)' : '패배(敗)');
-  cbTxt('#cbLog', win ? '적을 쓰러뜨렸다! 결전에서 살아남았다.' : '쓰러졌다… 체크포인트에서 다시.');
+  if (win) { const r = grantReward(combatKind); cbTxt('#cbLog', `적을 쓰러뜨렸다! · 보상 ${r}`); }
+  else cbTxt('#cbLog', '쓰러졌다… 체크포인트에서 다시.');
   awaitingParry = false;
   setTimeout(exitCombat, 2200);
+}
+// T2-04: 아이템은 관찰(觀察) 페이즈에만 사용. 소모품 3종(회복/기력/응수창 연장).
+let cbCanUseItem = false, cbRespondBonus = 0;
+function renderCombatItems() {
+  const box = document.querySelector('#cbItems'); if (!box) return;
+  const owned = Object.keys(CONSUMABLES).filter(id => (inventory[id] ?? 0) > 0);
+  if (!owned.length) { box.innerHTML = '<span class="cbNoItem">소지 아이템 없음</span>'; return; }
+  box.innerHTML = owned.map(id => {
+    const it = CONSUMABLES[id];
+    return `<button class="cbItem" data-item="${id}" ${cbCanUseItem ? '' : 'disabled'}>${it.name} ×${inventory[id]}</button>`;
+  }).join('');
+  box.querySelectorAll('.cbItem').forEach(b => b.addEventListener('click', () => useItem((b as HTMLElement).dataset.item!)));
+}
+function useItem(id: string) {
+  if (!cbCanUseItem || (inventory[id] ?? 0) <= 0) return;   // 관찰 페이즈에서만
+  const it = CONSUMABLES[id]; if (!it) return;
+  inventory[id]--;
+  if (it.effect === 'heal') { cbPlayerHp = Math.min(cbPlayerHpMax, cbPlayerHp + (it.value ?? 0)); cbTxt('#cbLog', `${it.name} 사용 · HP +${it.value}`); }
+  else if (it.effect === 'mana') { cbMana = Math.min(CB().manaMax, cbMana + (it.value ?? 0)); cbTxt('#cbLog', `${it.name} 사용 · 마나 +${it.value}`); }
+  else if (it.effect === 'slow') { cbRespondBonus += (it.value ?? 0); cbTxt('#cbLog', `${it.name} 사용 · 다음 응수 창 +${((it.value ?? 0) / 1000).toFixed(1)}초`); }
+  cbBars(); renderCombatItems(); saveGame();
 }
 $('#btnCombat').addEventListener('click', () => { combatActive ? exitCombat() : enterCombat(); });
 $('#cbExit').addEventListener('click', exitCombat);
@@ -467,11 +494,18 @@ const mapVisited = new Set<string>([STAGE.start]);
 const NODE_ICON: Record<string, string> = { battle: '⚔', training: '✎', event: '❈', shop: '₩', rest: '☾' };
 
 /* ---- T2-02 저장(localStorage): 노드 완료 이어하기 + 구역 체크포인트(패배 복귀) ---- */
+/* ---- T2-04 확장: 골드·경험치·인벤토리·장착 검 (벌기→사기→쓰기 루프) ---- */
 const SAVE_KEY = 'sm_save_v1', SAVE_VERSION = 1;
 let checkpoint: { current: string; visited: string[] } = { current: STAGE.start, visited: [STAGE.start] };
 let checkpointZone = STAGE.nodes[STAGE.start].zone;
+// 플레이어 진행 상태
+let gold = BALANCE.progression.startGold, xp = 0;
+let inventory: Record<string, number> = {};
+let equippedSword = 'nameless';
+const playerLevel = () => levelFromXp(xp);
+const playerStats = () => derivedStats(playerLevel(), equippedSword);
 function saveGame() {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ version: SAVE_VERSION, stage: 'stage1', current: mapCurrent, visited: [...mapVisited], checkpoint, checkpointZone })); } catch (_) { /* noop */ }
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ version: SAVE_VERSION, stage: 'stage1', current: mapCurrent, visited: [...mapVisited], checkpoint, checkpointZone, gold, xp, inventory, equippedSword })); } catch (_) { /* noop */ }
 }
 function loadGame(): boolean {
   try {
@@ -480,16 +514,40 @@ function loadGame(): boolean {
       mapCurrent = s.current; mapVisited.clear();
       (s.visited || []).forEach((v: string) => { if (STAGE.nodes[v]) mapVisited.add(v); });
       if (s.checkpoint && STAGE.nodes[s.checkpoint.current]) { checkpoint = s.checkpoint; checkpointZone = s.checkpointZone ?? STAGE.nodes[s.checkpoint.current].zone; }
+      gold = Number.isFinite(s.gold) ? s.gold : BALANCE.progression.startGold;
+      xp = Number.isFinite(s.xp) ? s.xp : 0;
+      inventory = (s.inventory && typeof s.inventory === 'object') ? { ...s.inventory } : {};
+      equippedSword = SWORDS[s.equippedSword] ? s.equippedSword : 'nameless';
+      updatePlayerHud();
       return true;
     }
   } catch (_) { /* noop */ }
+  updatePlayerHud();
   return false;
 }
 function resetGame() {
   try { localStorage.removeItem(SAVE_KEY); } catch (_) { /* noop */ }
   mapCurrent = STAGE.start; mapVisited.clear(); mapVisited.add(STAGE.start);
   checkpoint = { current: STAGE.start, visited: [STAGE.start] }; checkpointZone = STAGE.nodes[STAGE.start].zone;
-  saveGame(); renderMap();
+  gold = BALANCE.progression.startGold; xp = 0; inventory = {}; equippedSword = 'nameless';
+  updatePlayerHud(); saveGame(); renderMap();
+}
+// T2-04: 전투 승리 보상(골드+경험치) + 레벨업 감지. kind별 보상.
+function grantReward(kind: 'encounter' | 'elite' | 'boss'): string {
+  const p = BALANCE.progression;
+  const before = playerLevel();
+  gold += p.goldPerWin[kind] ?? 0;
+  xp += p.xpPerWin[kind] ?? 0;
+  const after = playerLevel();
+  updatePlayerHud(); saveGame();
+  const gained = `+${p.goldPerWin[kind] ?? 0}냥 · 경험치 +${p.xpPerWin[kind] ?? 0}`;
+  if (after > before) { const st = derivedStats(after, equippedSword); return `${gained} · ⬆ 레벨 ${after}! (최대 HP ${st.hpMax} · 위력 +${st.power})`; }
+  return gained;
+}
+function updatePlayerHud() {
+  const st = playerStats(); const nxt = xpToNext(xp);
+  const el = document.querySelector('#playerHud');
+  if (el) el.textContent = `Lv.${playerLevel()} · ${gold}냥 · HP ${st.hpMax} · 위력+${st.power} · ${SWORDS[equippedSword]?.name ?? ''}` + (nxt === null ? ' · MAX' : ` · 다음 Lv ${nxt}xp`);
 }
 // 구역 진입 시 체크포인트 갱신(패배 복귀 지점). 노드 완료(진행) 시 자동저장.
 function advanceTo(id: string) {
@@ -529,9 +587,15 @@ function renderMap() {
 }
 function selectNode(id: string) {
   const n = STAGE.nodes[id];
-  if (n.type === 'event' || n.type === 'shop' || n.type === 'rest') {
-    // 간이 노드: 맵 유지, 메시지 후 완료(대화/상점은 T2-05/T2-04)
-    const note = n.type === 'rest' ? '기력을 회복했다.' : (n.type === 'shop' ? '행상을 만났다 (상점은 T2-04).' : '사건이 벌어졌다 (대화는 T2-05).');
+  if (n.type === 'shop') {
+    // T2-04 상점: 골드로 아이템/검 구매. 떠나면 노드 완료.
+    afterScene = () => { advanceTo(id); enterMap(); };
+    exitMap(); enterShop();
+    return;
+  }
+  if (n.type === 'event' || n.type === 'rest') {
+    // 간이 노드: 맵 유지, 메시지 후 완료(대화는 T2-05)
+    const note = n.type === 'rest' ? '기력을 회복했다.' : '사건이 벌어졌다 (대화는 T2-05).';
     $('#mapHint').textContent = `${NODE_ICON[n.type]} ${n.label} — ${note}`;
     advanceTo(id);                       // 진행 + 자동저장
     setTimeout(renderMap, 850);
@@ -561,6 +625,51 @@ $('#mapReset').addEventListener('click', () => {
   if (!resetArm) { resetArm = true; b.textContent = '정말? 다시 탭'; clearTimeout(resetTimer); resetTimer = setTimeout(() => { resetArm = false; b.textContent = '처음부터'; }, 2500) as unknown as number; return; }
   resetArm = false; clearTimeout(resetTimer); b.textContent = '처음부터'; resetGame();
 });
+/* ---- T2-04 상점(行商) 씬 ---- */
+let shopActive = false;
+function enterShop() {
+  shopActive = true; $('#shop').classList.add('on'); $('#hint').style.display = 'none';
+  $('#shopHint').textContent = '';
+  renderShop();
+}
+function exitShop() {
+  if (!shopActive) return;
+  shopActive = false; $('#shop').classList.remove('on');
+  runAfterScene(true);
+}
+function renderShop() {
+  $('#shopGold').textContent = `소지금 ${gold}냥 · Lv.${playerLevel()} · ${SWORDS[equippedSword].name}`;
+  const row = (id: string) => {
+    const it = ITEMS[id];
+    const isSword = it.kind === 'sword';
+    const owned = isSword ? (id === equippedSword || (inventory['sword_' + id] ?? 0) > 0) : false;
+    let btn: string;
+    if (isSword && id === equippedSword) btn = `<span class="shopOwned">장착 중</span>`;
+    else if (isSword && owned) btn = `<button class="shopBuy" data-equip="${id}">장착</button>`;
+    else btn = `<button class="shopBuy" data-buy="${id}" ${gold < it.price ? 'disabled' : ''}>${it.price}냥</button>`;
+    const cnt = !isSword && (inventory[id] ?? 0) > 0 ? ` <span class="shopCnt">×${inventory[id]}</span>` : '';
+    return `<div class="shopItem"><div class="shopMeta"><b>${it.name}</b>${cnt}<small>${it.desc}</small></div>${btn}</div>`;
+  };
+  const consumables = Object.keys(CONSUMABLES).map(row).join('');
+  const swords = Object.keys(SWORDS).filter(id => id !== 'nameless' || equippedSword === 'nameless').map(row).join('');
+  $('#shopList').innerHTML = `<div class="shopSec">소모품 (관찰 중 사용)</div>${consumables}<div class="shopSec">검 (반격 위력)</div>${swords}`;
+  $('#shopList').querySelectorAll('[data-buy]').forEach(b => b.addEventListener('click', () => buyItem((b as HTMLElement).dataset.buy!)));
+  $('#shopList').querySelectorAll('[data-equip]').forEach(b => b.addEventListener('click', () => equipSword((b as HTMLElement).dataset.equip!)));
+}
+function buyItem(id: string) {
+  const it = ITEMS[id]; if (!it || gold < it.price) return;
+  gold -= it.price;
+  if (it.kind === 'sword') { inventory['sword_' + id] = 1; equippedSword = id; $('#shopHint').textContent = `${it.name} 구매·장착 (위력 +${it.power})`; }
+  else { inventory[id] = (inventory[id] ?? 0) + 1; $('#shopHint').textContent = `${it.name} 구매 (보유 ${inventory[id]})`; }
+  updatePlayerHud(); saveGame(); renderShop();
+}
+function equipSword(id: string) {
+  if (!SWORDS[id]) return;
+  equippedSword = id; $('#shopHint').textContent = `${SWORDS[id].name} 장착 (위력 +${SWORDS[id].power})`;
+  updatePlayerHud(); saveGame(); renderShop();
+}
+$('#shopExit').addEventListener('click', exitShop);
+
 loadGame();   // T2-02: 부팅 시 이어하기 로드(맵 열면 저장 진행 반영)
 
 /* ---- 검로(劍路) 입력: Pointer Events. T0-02 ---- */

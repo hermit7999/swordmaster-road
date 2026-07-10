@@ -115,6 +115,13 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
 #cbLog { font-size: 12px; text-align: center; opacity: .8; min-height: 16px; }
 #cbExit { align-self: center; font-size: 11px; color: var(--bone); background: var(--panel); border: 1px solid var(--line);
   border-radius: 7px; padding: 4px 10px; cursor: pointer; margin-top: 2px; pointer-events: auto; }
+#cbItems { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; min-height: 20px; }
+.cbItem { font-size: 11px; color: var(--gold); background: var(--panel); border: 1px solid var(--gold);
+  border-radius: 7px; padding: 3px 8px; cursor: pointer; pointer-events: auto; }
+.cbItem:disabled { opacity: .35; border-color: var(--line); color: var(--bone); cursor: default; }
+.cbNoItem { font-size: 10px; opacity: .4; }
+#playerHud { font-size: 11px; color: var(--gold); opacity: .9; margin-top: 4px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 
 /* 승급 시험(昇級) 오버레이 */
 #trial { position: absolute; top: 48px; left: 50%; transform: translateX(-50%); z-index: 22; pointer-events: none;
@@ -155,6 +162,29 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
 #mapHint { font-size: 12px; opacity: .8; text-align: center; }
 #mapActions { display: flex; gap: 8px; }
 #mapExit, #mapReset { font-size: 11px; color: var(--bone); background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 4px 12px; cursor: pointer; }
+
+/* 상점(行商) 씬 T2-04 */
+#shop { position: absolute; inset: 40px 12px 12px 12px; z-index: 30; display: none;
+  flex-direction: column; align-items: center; gap: 8px;
+  background: rgba(22,19,15,.95); border: 1px solid var(--line); border-radius: 12px; padding: 14px; overflow: auto; }
+#shop.on { display: flex; }
+#shopTitle { font-size: 16px; font-weight: 800; color: var(--gold); }
+#shopGold { font-size: 12px; color: var(--bone); }
+#shopList { width: min(460px, 96%); display: flex; flex-direction: column; gap: 6px; }
+.shopSec { font-size: 11px; color: var(--gold); opacity: .7; margin-top: 6px; border-bottom: 1px solid var(--line); padding-bottom: 2px; }
+.shopItem { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.shopMeta { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.shopMeta b { font-size: 13px; color: var(--bone); }
+.shopMeta small { font-size: 10.5px; opacity: .6; }
+.shopCnt { font-size: 10px; color: var(--gold); }
+.shopBuy { font-size: 11px; color: var(--gold); background: rgba(0,0,0,.3); border: 1px solid var(--gold);
+  border-radius: 7px; padding: 4px 10px; cursor: pointer; white-space: nowrap; flex-shrink: 0; }
+.shopBuy:disabled { opacity: .3; border-color: var(--line); color: var(--bone); cursor: default; }
+.shopOwned { font-size: 10.5px; color: var(--bone); opacity: .6; flex-shrink: 0; }
+#shopHint { font-size: 12px; color: var(--gold); min-height: 16px; text-align: center; }
+#shopExit { font-size: 11px; color: var(--bone); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 7px; padding: 4px 14px; cursor: pointer; }
 
 /* 자가진단 패널 */
 #diag { position: absolute; left: 12px; bottom: 12px; z-index: 25; max-width: 46%; pointer-events: none;

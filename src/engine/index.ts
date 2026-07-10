@@ -7,3 +7,4 @@ export * from './command';
 export * from './rhythm';
 export * from './combo';
 export * from './style';
+export * from './progression';

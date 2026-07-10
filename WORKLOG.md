@@ -312,3 +312,14 @@ OI-12(원무 커맨드 난이도)는 원무가 M1 범위라 M0 DoD 아님(보류
   · 결전: 기존 전체 FSM(HP 90, 응수 2200) 유지.
   · 검증(브라우저 실증): b1 클릭→일섬 페이즈·무입력 스침→e1 해금·저장 반영 / b2→kind elite·HP54·respond2700·관찰 / boss→kind boss·HP90·respond2200·관찰. vitest 106/106, tsc 무경고, build OK.
   · 미완/주의: 조우전은 현재 항상 돌파(HP 노드간 미영속 — T2-04 경제/HP 영속 후 스테이크 부여 검토). 섬광 일격 우위 임계는 T2-08 밸런스에서 튜닝.
+
+- 2026-07-10 [Claude] T2-04 경제/아이템/레벨 — 벌기→사기→쓰기 루프 + 레벨업
+  · items.json 신설: 소모품 3종(지혈단 HP+20/기력환 마나+15/안법부적 응수창+0.8s) + 검 3종(무명 0/청강 +3/파도 +5), 각 source(획득경로) 필드.
+  · balance.progression 추가: hpPerLevel 10·powerPerLevel 2·xpToLevel[0,40,90,160,250,360]·goldPerWin{조우8·정예20·보스50}·xpPerWin{10·25·60}·startGold 20. (초안가 — §9.2 미정, T2-08서 확정)
+  · engine/progression.ts(순수): levelFromXp·xpToNext·derivedStats. 단위테스트 5건.
+  · 저장 스키마 확장(v1 호환): gold·xp·inventory·equippedSword. loadGame 방어적 파싱.
+  · 전투 연동: 승리 시 kind별 보상(grantReward)+레벨업 감지, 반격 데미지에 위력 보너스 가산, 플레이어 최대 HP=파생스탯. 아이템은 관찰(觀察) 페이즈에만 사용(응수 진입 시 버튼 비활성).
+  · 상점(行商) 씬 신설: 골드로 소모품 구매·검 구매/장착, 씬 패널 규칙 준수(장식 pointer-events none).
+  · HUD에 진행 상태 라인(#playerHud): Lv·냥·HP·위력·검·다음Lv.
+  · 검증(브라우저 실증): 조우 승리 20→28냥·xp0→10 / 상점 200→90냥·청강검 장착 위력+3·지혈단 구매 / 관찰서 지혈단 사용 HP+20·응수서 버튼 비활성 / xp35→조우승리 Lv1→2·HP60→70·위력0→2. vitest 111/111, tsc 무경고, build OK.
+  · 미완/주의: 아이템 밸런스·섬광 임계·검 가격은 T2-08 튜닝 대상. 상점 재고 무한(1회성 아님). 브라우저 스크린샷 도구가 이 세션서 응답행(DOM eval은 정상) — 검증은 DOM 판독으로 수행.

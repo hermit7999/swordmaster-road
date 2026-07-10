@@ -1,0 +1,12 @@
+{
+  "consumables": {
+    "heal_pill": { "name": "지혈단(止血丹)", "kind": "consumable", "effect": "heal", "value": 20, "price": 30, "desc": "관찰 중 사용 · HP 20 회복", "source": ["shop", "reward"] },
+    "mana_pill": { "name": "기력환(氣力丸)", "kind": "consumable", "effect": "mana", "value": 15, "price": 25, "desc": "관찰 중 사용 · 마나 15 회복", "source": ["shop"] },
+    "eye_charm": { "name": "안법부적(眼法符)", "kind": "consumable", "effect": "slow", "value": 800, "price": 40, "desc": "관찰 중 사용 · 다음 응수 창 0.8초 연장", "source": ["shop", "event"] }
+  },
+  "swords": {
+    "nameless": { "name": "무명검(無名劍)", "kind": "sword", "power": 0, "price": 0, "desc": "이름 없는 낡은 검 (기본)", "source": ["start"] },
+    "blue_steel": { "name": "청강검(靑鋼劍)", "kind": "sword", "power": 3, "price": 80, "desc": "반격 위력 +3", "source": ["shop"] },
+    "wave_blade": { "name": "파도검(破濤劍)", "kind": "sword", "power": 5, "price": 150, "desc": "반격 위력 +5", "source": ["shop", "boss"] }
+  }
+}
