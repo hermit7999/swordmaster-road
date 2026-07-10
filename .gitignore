@@ -1,0 +1,14 @@
+# deps / build (M1 Phaser+Vite 전환 시)
+node_modules/
+dist/
+.vite/
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# 임시
+*.log
+*.tmp
