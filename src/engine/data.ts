@@ -36,6 +36,7 @@ export interface Balance {
     parryDamage: { good: number; great: number; perfect: number };
     manaRecoverHit: number; manaRecoverPerfect: number;
     observeMs: number; respondMs: number;
+    kinds: Record<string, { hpMul: number; respondMs?: number; windowMs?: number }>;
   };
   weights: { direction: number; straight: number; speed: number; completion: number };
   simulMs: number;

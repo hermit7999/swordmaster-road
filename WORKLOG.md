@@ -303,3 +303,12 @@ OI-12(원무 커맨드 난이도)는 원무가 M1 범위라 M0 DoD 아님(보류
   · 미완/주의: 검결 정확도는 T0-05(RhythmJudge) 전까지 tightness 기반 **임시점수**(화면에 라벨 명시).
     T0-06(InputArbiter)는 근접중복 차단 수준의 임시 구현. 원무/찌르기 등 5획은 M1 범위(제외).
     실기 검증(폰/PC 실제 그어보기)·GitHub Pages 배포는 미실시(원격 미설정, push는 사용자 승인 대기).
+
+- 2026-07-10 [Claude] T2-03 전투 3무게(조우·정예·결전) 구분 · 노드 타입별 차등 동작
+  · balance.combat.kinds 추가 — encounter{hpMul 1.0, windowMs 2000} · elite{hpMul 0.6, respondMs 2700} · boss{hpMul 1.0, respondMs 2200}.
+  · enterCombat(enemyId, kind) 로 무게 분기. 맵 battle 노드의 battleKind(b1=encounter/b2=elite/boss=boss)를 그대로 전달.
+  · 조우전: 실시간 1타(관찰 페이즈 없음, 즉시 응수 창) — 정타=섬광 일격(閃光), 빗나감=스침(掠)이나 저스테이크 돌파(노드 완료). cbEncounter/cbEncounterResolve 신설.
+  · 정예전: 결전 FSM 재사용하되 적 HP 0.6배(54) + 응수 창 2700ms(요구치 완화) → 자연히 합 3~5회로 짧아짐.
+  · 결전: 기존 전체 FSM(HP 90, 응수 2200) 유지.
+  · 검증(브라우저 실증): b1 클릭→일섬 페이즈·무입력 스침→e1 해금·저장 반영 / b2→kind elite·HP54·respond2700·관찰 / boss→kind boss·HP90·respond2200·관찰. vitest 106/106, tsc 무경고, build OK.
+  · 미완/주의: 조우전은 현재 항상 돌파(HP 노드간 미영속 — T2-04 경제/HP 영속 후 스테이크 부여 검토). 섬광 일격 우위 임계는 T2-08 밸런스에서 튜닝.

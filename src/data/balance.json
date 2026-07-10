@@ -25,7 +25,12 @@
     "playerHp": 60, "manaMax": 40, "startMana": 20,
     "parryDamage": { "good": 12, "great": 16, "perfect": 22 },
     "manaRecoverHit": 6, "manaRecoverPerfect": 12,
-    "observeMs": 1600, "respondMs": 2200
+    "observeMs": 1600, "respondMs": 2200,
+    "kinds": {
+      "encounter": { "hpMul": 1.0, "respondMs": 2000, "windowMs": 2000 },
+      "elite": { "hpMul": 0.6, "respondMs": 2700 },
+      "boss": { "hpMul": 1.0, "respondMs": 2200 }
+    }
   },
   "weights": { "direction": 0.40, "straight": 0.30, "speed": 0.15, "completion": 0.15 },
   "simulMs": 70,

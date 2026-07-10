@@ -304,15 +304,47 @@ function playCue(dir: string) {
     o.start(); o.stop(audio.currentTime + 0.4);
   } catch (e) { /* noop */ }
 }
-function enterCombat(enemyId = 'goblin') {
+// T2-03: 전투 3무게 — 조우(encounter, 실시간 1타)·정예(elite, 간소 합)·결전(boss, 전체 FSM)
+let combatKind: 'encounter' | 'elite' | 'boss' = 'boss';
+let cbRespondMs = 2200;
+function enterCombat(enemyId = 'goblin', kind: 'encounter' | 'elite' | 'boss' = 'boss') {
+  combatKind = kind;
+  const k = CB().kinds[kind] ?? CB().kinds.boss;
   cbEnemy = ENEMIES[enemyId];
-  cbEnemyHpMax = cbEnemy.hp; cbEnemyHp = cbEnemy.hp;
+  cbEnemyHpMax = Math.max(1, Math.round(cbEnemy.hp * (k.hpMul ?? 1))); cbEnemyHp = cbEnemyHpMax;
   cbPlayerHp = CB().playerHp; cbMana = CB().startMana;
+  cbRespondMs = k.respondMs ?? CB().respondMs;
   combatActive = true; awaitingParry = false; combatResult = 'quit';   // 중도이탈 기본
   $('#combat').classList.add('on'); $('#hint').style.display = 'none'; $('#btnCombat').classList.add('active');
   cbTxt('#cbEnemyName', cbEnemy.name); cbBars();
-  cbTxt('#cbLog', '결전 시작 — 적의 예고를 보고 응수하라 (소리로도 방향 인지 가능)');
-  cbTimer = setTimeout(cbObserve, 700) as unknown as number;
+  if (kind === 'encounter') {
+    cbTxt('#cbLog', '조우(遭遇) — 적이 급습한다! 예고 방향으로 즉시 일섬(一閃)하라');
+    cbTimer = setTimeout(cbEncounter, 600) as unknown as number;
+  } else {
+    cbTxt('#cbLog', (kind === 'elite' ? '정예전(精銳) 시작' : '결전(決戰) 시작') + ' — 적의 예고를 보고 응수하라 (소리로도 방향 인지 가능)');
+    cbTimer = setTimeout(cbObserve, 700) as unknown as number;
+  }
+}
+// 조우전: 실시간 1타. 예고 후 즉시 응수 창(觀察 없음). 정타=섬광 일격, 빗나감=스침(저스테이크 돌파).
+function cbEncounter() {
+  cbAttack = cbEnemy.attacks[Math.floor(Math.random() * cbEnemy.attacks.length)];
+  cbTxt('#cbPhase', '일섬(一閃) — 지금!');
+  cbTxt('#cbTele', `적 급습! ${cbAttack.name} ${cbAttack.dir} — 섬광 응수: ${cbAttack.counterName}`);
+  playCue(cbAttack.dir);
+  awaitingParry = true;
+  if (soundOn) playTick();
+  const win = CB().kinds.encounter.windowMs ?? cbRespondMs;
+  cbTimer = setTimeout(() => combatOnParry(null), win) as unknown as number;
+}
+function cbEncounterResolve(ev: StrokeEvent | null) {
+  const a = cbAttack!;
+  const ok = !!ev && ev.strokeId === a.counter && (ev.grade === 'good' || ev.grade === 'great' || ev.grade === 'perfect');
+  cbEnemyHp = 0; cbBars();
+  cbTxt('#cbPhase', ok ? '섬광(閃光)' : '스침(掠)');
+  if (ok) cbTxt('#cbLog', `⚡ 섬광 일격! ${a.counterName}(${ev!.grade}) — 적을 단칼에 베고 지나쳤다`);
+  else { const what = ev ? (STROKE_TEMPLATES[ev.strokeId]?.name ?? ev.strokeId) : '무입력'; cbTxt('#cbLog', `✗ 빗나갔다(${what}) — ${a.name}에 스쳤으나 돌파했다`); }
+  combatWon = true; combatResult = 'win';   // 조우는 돌파(노드 완료)
+  cbTimer = setTimeout(exitCombat, 1400) as unknown as number;
 }
 let combatWon = false, combatResult: 'win' | 'lose' | 'quit' = 'quit';
 function exitCombat() {
@@ -336,11 +368,12 @@ function cbRespond() {
   cbTxt('#cbPhase', '응수(應手) — 지금!');
   awaitingParry = true;
   if (soundOn) playTick();  // "지금" 신호
-  cbTimer = setTimeout(() => combatOnParry(null), CB().respondMs) as unknown as number;
+  cbTimer = setTimeout(() => combatOnParry(null), cbRespondMs) as unknown as number;
 }
 function combatOnParry(ev: StrokeEvent | null) {
   if (!awaitingParry) return;
   awaitingParry = false; clearTimeout(cbTimer);
+  if (combatKind === 'encounter') { cbEncounterResolve(ev); return; }
   const a = cbAttack!;
   const ok = !!ev && ev.strokeId === a.counter && (ev.grade === 'good' || ev.grade === 'great' || ev.grade === 'perfect');
   cbTxt('#cbPhase', '해소(解消)');
@@ -511,7 +544,8 @@ function selectNode(id: string) {
       else if (combatResult === 'lose') restoreCheckpoint();
       enterMap();
     };
-    exitMap(); enterCombat('goblin');    // 조우/정예/보스 구분은 T2-03/T2-06
+    const kind = (n.battleKind === 'encounter' || n.battleKind === 'elite') ? n.battleKind : 'boss';
+    exitMap(); enterCombat('goblin', kind);   // T2-03: 조우/정예/결전 무게 구분
     return;
   }
   if (n.type === 'training') {
