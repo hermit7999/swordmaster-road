@@ -23,15 +23,27 @@ export function rhythmGradeAcc(maxErr: number): { grade: Grade; accuracy: number
   return { grade: 'miss', accuracy: 0 };
 }
 // rawInputs = CommandCapture 버퍼(collapse 이전).
+// 동일 이상 오프셋(=동시 입력, chord)은 순서 무관 멀티셋으로 매칭 — ↓+→에서 →가 먼저 들어와도 정상.
 export function judgeRhythm(rawInputs: CommandInput[], strokeId: string, style: Style = STYLES.uraken): RhythmResult {
   const rawCount = rawInputs.length;
   let ins = style.mirrorX ? rawInputs.map(i => ({ dir: MIRROR_TOK[i.dir] || i.dir, t: i.t })) : rawInputs.map(i => ({ dir: i.dir, t: i.t }));
   ins = expandRaw(ins).sort((a, b) => a.t - b.t);
   const spec = STROKE_TEMPLATES[strokeId];
   if (ins.length !== spec.raw.length) return { grade: 'miss', accuracy: 0, reason: 'count' };
-  for (let i = 0; i < spec.raw.length; i++) if (ins[i].dir !== spec.raw[i]) return { grade: 'miss', accuracy: 0, reason: 'order' };
-  const t0 = ins[0].t; let maxErr = 0; const errors: number[] = [];
-  for (let i = 0; i < ins.length; i++) { const e = Math.abs((ins[i].t - t0) - spec.rhythm[i]); errors.push(Math.round(e)); if (e > maxErr) maxErr = e; }
+  // 이상 리듬을 동시 그룹(동일 오프셋 연속)으로 묶는다.
+  const groups: { off: number; dirs: string[] }[] = [];
+  for (let i = 0; i < spec.raw.length; i++) {
+    const last = groups[groups.length - 1];
+    if (last && last.off === spec.rhythm[i]) last.dirs.push(spec.raw[i]);
+    else groups.push({ off: spec.rhythm[i], dirs: [spec.raw[i]] });
+  }
+  const t0 = ins[0].t; let maxErr = 0; const errors: number[] = []; let idx = 0;
+  for (const g of groups) {
+    const slice = ins.slice(idx, idx + g.dirs.length); idx += g.dirs.length;
+    const want = [...g.dirs].sort(); const got = slice.map(s => s.dir).sort();  // 그룹 내 순서 무관
+    if (want.length !== got.length || want.some((d, i) => d !== got[i])) return { grade: 'miss', accuracy: 0, reason: 'order' };
+    for (const s of slice) { const e = Math.abs((s.t - t0) - g.off); errors.push(Math.round(e)); if (e > maxErr) maxErr = e; }
+  }
   const ga = rhythmGradeAcc(maxErr);
   // 다입력(고난도) 정밀 성공 시 위력 +10% (패드 단일 대각 press 제외). FR-INP-014.
   const powerBonus = rawCount >= 2 && ga.grade !== 'miss' && maxErr <= BALANCE.rhythm.windows.great;
