@@ -1,7 +1,7 @@
 // DOM/게임 계층 (T1-01: 순수부는 src/engine에서 임포트). 판정 로직은 여기 없음.
 import './style.css';
 import {
-  BALANCE, STROKE_TEMPLATES, STYLES, ENEMIES,
+  BALANCE, STROKE_TEMPLATES, STYLES, ENEMIES, TRIALS,
   judgeStroke, recognizeCommand, judgeRhythm, gradeOf, createTechniqueTracker,
   bbox, resample, otherStyle,
 } from './engine';
@@ -142,6 +142,7 @@ function emitStroke(ev: StrokeEvent, extra?: string) {
   playGrade(ev.grade); haptic(ev.grade);
   updateHud(ev, extra);
   if (combatActive) { if (awaitingParry) combatOnParry(ev); return; }  // T1-07 결전: 응수 창에서만 유효
+  if (trialActive) { trialCtl.feed(ev); return; }         // T1-08 승급 시험으로 라우팅
   if (trainingActive) { trainingCtl.feed(ev); return; }   // T1-06 수련 모드로 라우팅
   updateTech(tracker.feed(ev));
 }
@@ -337,6 +338,65 @@ function cbEnd(win: boolean) {
 }
 $('#btnCombat').addEventListener('click', () => { combatActive ? exitCombat() : enterCombat(); });
 $('#cbExit').addEventListener('click', exitCombat);
+
+/* ---- T1-08 승급 시험(昇級) 씬 (DOM). 마나 각성: 4획 연속(≤2s)·평균70+·미스 즉시중단 ---- */
+const CUR_TRIAL = 'mana_awakening';
+let trialActive = false, trialIdx = 0, trialBusy = false;
+let trialAccs: { id: string; acc: number }[] = [];
+let trialTimer: number | undefined;
+const trialSpec = () => TRIALS[CUR_TRIAL];
+function setTrialMaster(s: string, cls = '') { const m = $('#trialMaster'); m.textContent = s; m.className = cls; }
+function renderTrialSteps() {
+  const t = trialSpec();
+  $('#trialSteps').innerHTML = t.strokes.map((id, i) => {
+    const cls = i < trialIdx ? 'done' : (i === trialIdx ? 'cur' : 'off');
+    return `<span class="tstep ${cls}">${STROKE_TEMPLATES[id].name.replace(/\(.*\)/, '')}</span>`;
+  }).join(' → ');
+}
+function enterTrial() {
+  const t = trialSpec();
+  trialActive = true; trialIdx = 0; trialAccs = []; trialBusy = false;
+  $('#trial').classList.add('on'); $('#hint').style.display = 'none'; $('#btnTrial').classList.add('active');
+  $('#trialRetry').style.display = 'none';
+  $('#trialTitle').textContent = `${t.name} 시험 — 4획 연속(획 간 ≤${t.intervalMs / 1000}초), 평균 ${t.avgPass}+ · 미스 즉시 중단`;
+  setTrialMaster('시작하라. 첫 획부터, 끊김 없이.'); renderTrialSteps();
+}
+function exitTrial() { trialActive = false; clearTimeout(trialTimer); $('#trial').classList.remove('on'); $('#btnTrial').classList.remove('active'); }
+function trialFailTimeout() { if (trialActive && !trialBusy) trialFail('시간 초과 — 흐름이 끊겼다', undefined); }
+const trialCtl = {
+  feed(ev: StrokeEvent) {
+    if (trialBusy) return;
+    clearTimeout(trialTimer);
+    const t = trialSpec(); const target = t.strokes[trialIdx];
+    if (ev.grade === 'miss') return trialFail('미스 — 즉시 중단', undefined);
+    if (ev.strokeId !== target) return trialFail(`획이 어긋났다 (${STROKE_TEMPLATES[ev.strokeId]?.name ?? ev.strokeId})`, undefined);
+    trialAccs.push({ id: target, acc: ev.accuracy }); trialIdx++; renderTrialSteps();
+    if (trialIdx >= t.strokes.length) {
+      const avg = Math.round(trialAccs.reduce((s, a) => s + a.acc, 0) / trialAccs.length);
+      if (avg >= t.avgPass) return trialPass(avg);
+      return trialFail(null, avg);
+    }
+    setTrialMaster(`좋다 (${ev.accuracy}). 이어라.`);
+    trialTimer = setTimeout(trialFailTimeout, t.intervalMs) as unknown as number;
+  },
+};
+function trialFail(reason: string | null, avg?: number) {
+  trialBusy = true; clearTimeout(trialTimer);
+  const weakest = trialAccs.length ? trialAccs.reduce((m, a) => a.acc < m.acc ? a : m) : null;
+  let msg = avg !== undefined ? `불합격 — 평균 ${avg} (기준 ${trialSpec().avgPass} 미달). ` : `불합격 — ${reason}. `;
+  if (weakest) msg += `${STROKE_TEMPLATES[weakest.id].name.replace(/\(.*\)/, '')} 획이 아직 흐리다.`;
+  setTrialMaster(msg, 'miss');
+  $('#trialRetry').style.display = 'inline-block';
+}
+function trialPass(avg: number) {
+  trialBusy = true; clearTimeout(trialTimer);
+  setTrialMaster(`합격! 평균 ${avg}. 마나가 깨어났다 — 이제 검에 기(氣)를 싣는다.`, 'perfect');
+  $('#trialRetry').style.display = 'none';
+  setTimeout(exitTrial, 2800);
+}
+$('#btnTrial').addEventListener('click', () => { trialActive ? exitTrial() : enterTrial(); });
+$('#trialRetry').addEventListener('click', enterTrial);
+$('#trialExit').addEventListener('click', exitTrial);
 
 /* ---- 검로(劍路) 입력: Pointer Events. T0-02 ---- */
 let drawing = false, points: Pt[] = [], t0 = 0, gRect: DOMRect | null = null;

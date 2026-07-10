@@ -1,0 +1,8 @@
+{
+  "mana_awakening": {
+    "name": "마나 각성",
+    "strokes": ["h_lr", "diag_dr", "v_down", "v_up"],
+    "intervalMs": 2000,
+    "avgPass": 70
+  }
+}
