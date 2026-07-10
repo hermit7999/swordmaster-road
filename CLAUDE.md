@@ -4,25 +4,28 @@
 
 ## 현재 상태 (2026-07-10)
 
-- **M0 완료 (조건부 통과)** — 획 3종 검로/검결 판정, 등급/사운드/오버레이, 연풍참, 좌수 미러, 채널 중재. 라이브: https://hermit7999.github.io/swordmaster-road/
-  - 잔여 1건: 테스터 3인 "다시 긋고 싶다" 실기 — **M1 완료 전까지 실시**(미실시로 M2 진입 금지).
-- **M1 착수** — Phaser 3 + TypeScript + Vite 전환. 획 8종 + 검술 6종 + 유파 정식화 + 수련 씬 + 결전 전투 + 승급 시험. 진행 순서·완료 기준 = `docs/작업지시서_v2.md` §3.
+- **M0 + M1 완료 (M1 조건부 통과)** — 획 8종·검술 6종·유파 2종·수련/결전/승급 씬. 라이브: https://hermit7999.github.io/swordmaster-road/
+  - M1 잔여 1건: **테스터 3인 플레이테스트**(M1 빌드가 첫 "보낼 만한 빌드" — 사용자 액션, 라이브 URL 공유).
+- **M2 착수 (데모: 프롤로그~스테이지1, 30~40분)** — 노드맵·저장·조우/정예전·경제/아이템/레벨·스토리·적확장/보스·타이틀/설정. 진행 순서·완료 기준 = `docs/작업지시서_v3.md` §2. 의존: T2-00→T2-01→(T2-02,T2-03,T2-05)→T2-04,T2-06→T2-07→T2-08→T2-09.
+
+## 아키텍처
+
+- **웹 표준 스택: TypeScript + Vite, 판정 엔진 순수 TS(`src/engine`), 씬 = DOM + Canvas.**
+- **Phaser 이관 보류** (NFR-011): M1/M2는 DOM+Canvas 유지. 엔진이 순수 TS라 이관 비용 통제됨. **명확한 성능/연출 한계 도달 시 멈추고 보고 후 재평가.**
+- 배포: `git push origin main` → GitHub Actions(`.github/workflows/deploy.yml`)가 `npm ci→build→dist` 배포(Pages build_type=workflow). 로컬 확인=`npm run dev` 또는 `npm run build`+`vite preview`(base `/swordmaster-road/`).
 
 ## 작업 규칙 (필수)
 
-1. M0는 단일 `index.html`(프레임워크 금지). **M1부터 Phaser 3 + TS + Vite** — 순수부(engine)와 DOM 계층 분리.
-2. 판정 로직은 **순수 함수**(DOM 비의존): `judgeStroke` / `judgeRhythm` / `ComboTracker` / 미러.
-3. 수치 하드코딩 금지 — `BALANCE / STROKE_TEMPLATES / TECHNIQUES / STYLES` 데이터 블록에만. M1에서 `src/data/*.json`으로 외부화.
-4. 판정 이벤트 규격 고정: `{strokeId, accuracy, grade, inputMode, timestamp}`.
-5. 용어 통일(판타지): 퍼펙트/그레이트/굿/배드/미스, 소드 아츠, 골드, 승급 시험.
-6. 요구사항 ID(FR-INP-004 등)를 코드 주석에 남긴다.
-7. **작업(태스크) 완료마다 커밋 + push**, `WORKLOG.md` 갱신. 커밋 메시지는 "무엇을·왜".
+1. 판정 로직은 **순수 함수**(DOM 비의존): `src/engine/*.ts`(judge/rhythm/command/combo/style/geometry). DOM/씬은 `src/main.ts`.
+2. 수치 하드코딩 금지 — `src/data/*.json`(strokes/techniques/styles/enemies/trials/balance)에만.
+3. 판정 이벤트 규격 고정: `{strokeId, accuracy, grade, inputMode, timestamp}`.
+4. 용어 통일(판타지): 퍼펙트/그레이트/굿/배드/미스, 소드 아츠, 골드, 승급 시험.
+5. 요구사항 ID(FR-INP-004 등)를 코드 주석에 남긴다.
+6. **작업(태스크) 완료마다 커밋 + push**, `WORKLOG.md` 갱신. 커밋 메시지는 "무엇을·왜".
+7. 회귀: `npm test`(vitest, 현재 87종). 씬 변경은 브라우저 자가진단 + 실기 확인.
 
 ## 문서
-
-- `docs/설계서_v3.1.md` — 판정·입력 코어 설계(산식/수치/중재/유파).
-- `docs/SRS_v1.2.md` — 요구사항(FR-INP/JDG/FBK, Open Issues).
-- `docs/작업지시서_v2.md` — M0 마감 판정 + M1 상세 태스크(T1-00~T1-09).
-- `WORKLOG.md` — 인수인계 장부 + M0 검증 리포트(T0-11).
-
-> 참고: 이전 세션의 SRS v1.1 / 설계서 v3.0 / 작업지시서 v1 원본 파일은 이 저장소·PC에 존재하지 않았다. 현재 docs/는 M0 검증 통과분을 단일 진실로 재정착한 정식 문서다.
+- `docs/설계서_v3.2.md` — 판정·입력·전투·씬 코어 설계.
+- `docs/SRS_v1.3.md` — 요구사항(FR-*, NFR, Open Issues).
+- `docs/작업지시서_v3.md` — M1 마감 + M2 상세(T2-00~T2-10). (`작업지시서_v2.md`는 이력.)
+- `WORKLOG.md` — 인수인계 장부 + M0(T0-11)·M1(T1-09) 검증 리포트.

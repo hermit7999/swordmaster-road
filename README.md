@@ -39,7 +39,8 @@ python -m http.server 5178 --directory .
 
 ## 상태
 
-**M0 완료(조건부 통과)** — T0-01~11 전부 구현·검증(node 29/29, 자가진단 24/24). 라이브 배포됨. 잔여 = 테스터 3인 실기.
-**M1 착수** — Phaser 3 + TS + Vite 전환(획 8종·검술 6종·유파·수련·결전·승급). 태스크·완료기준은 [docs/작업지시서_v2.md](docs/작업지시서_v2.md).
+**M0 + M1 완료(M1 조건부 통과)** — 획 8종·검술 6종·유파 2종·수련/결전/승급 씬. vitest 87종·자가진단 28/28. 라이브 배포됨. 잔여 = 테스터 3인 실기.
+**M2 착수(데모: 프롤로그~스테이지1, 30~40분)** — 노드맵·저장·조우/정예전·경제·스토리·보스·타이틀. 태스크·완료기준은 [docs/작업지시서_v3.md](docs/작업지시서_v3.md).
 
-설계·요구사항은 [docs/설계서_v3.1.md](docs/설계서_v3.1.md) · [docs/SRS_v1.2.md](docs/SRS_v1.2.md), 진행 이력·검증 리포트는 [WORKLOG.md](WORKLOG.md).
+아키텍처: TypeScript + Vite, 엔진 순수 TS(`src/engine`), 씬 = DOM + Canvas(Phaser 보류).
+설계·요구사항은 [docs/설계서_v3.2.md](docs/설계서_v3.2.md) · [docs/SRS_v1.3.md](docs/SRS_v1.3.md), 진행 이력·검증 리포트는 [WORKLOG.md](WORKLOG.md).
