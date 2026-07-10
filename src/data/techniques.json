@@ -1,3 +1,8 @@
 {
-  "yeonpung": { "name": "연풍참", "combo": ["h_lr", "diag_dr"], "window": 1500, "cost": 15 }
+  "iljabegi":   { "name": "일자베기",  "combo": ["h_lr", "h_rl"],                       "window": 1500, "cost": 10, "damage": 18 },
+  "sipjabegi":  { "name": "십자베기",  "combo": ["h_lr", "v_down"],                     "window": 1500, "cost": 12, "damage": 22, "stun": true },
+  "yeonpung":   { "name": "연풍참",    "combo": ["h_lr", "diag_dr"],                    "window": 1500, "cost": 15, "damage": 28, "aoe": true },
+  "nakroecham": { "name": "낙뢰참",    "combo": ["v_up", "v_down", "thrust"],           "window": 2500, "cost": 22, "damage": 45 },
+  "hoechonmu":  { "name": "회천무",    "combo": ["wonmu", "h_lr", "h_rl"],              "window": 3000, "cost": 25, "damage": 40, "aoe": true },
+  "seomgwang":  { "name": "섬광자돌",  "combo": ["diag_dr", "diag_dl", "thrust", "thrust"], "window": 3500, "cost": 30, "damage": 60, "pierce": true }
 }

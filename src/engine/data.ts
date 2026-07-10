@@ -23,6 +23,9 @@ export interface Balance {
     circleWeights: { radius: number; sweep: number; closure: number };
   };
   comboWindow: number;
+  basicAttackDamage: number;
+  commandBonusMode: 'all_or_nothing' | 'proportional';
+  missPenalty: { manaFraction: number; stunMs: number };
   weights: { direction: number; straight: number; speed: number; completion: number };
   simulMs: number;
   commandResolveMs: number;
@@ -30,7 +33,10 @@ export interface Balance {
   arbiterStaleMs: number;
   rhythm: { beatMs: number; windows: { perfect: number; great: number; good: number; bad: number } };
 }
-export interface Technique { name: string; combo: string[]; window: number; cost: number }
+export interface Technique {
+  name: string; combo: string[]; window: number; cost: number; damage: number;
+  stun?: boolean; aoe?: boolean; pierce?: boolean;
+}
 
 export const BALANCE = balanceJson as Balance;
 export const STROKE_TEMPLATES = strokesJson as unknown as Record<string, StrokeSpec>;

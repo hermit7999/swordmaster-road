@@ -1,8 +1,8 @@
 // DOM/게임 계층 (T1-01: 순수부는 src/engine에서 임포트). 판정 로직은 여기 없음.
 import './style.css';
 import {
-  BALANCE, STROKE_TEMPLATES, TECHNIQUES, STYLES,
-  judgeStroke, recognizeCommand, judgeRhythm, gradeOf, createComboTracker,
+  BALANCE, STROKE_TEMPLATES, STYLES,
+  judgeStroke, recognizeCommand, judgeRhythm, gradeOf, createTechniqueTracker,
   bbox, resample, otherStyle,
 } from './engine';
 import type { Pt, Dir, Grade, Style, StrokeEvent, CommandInput } from './engine';
@@ -73,8 +73,8 @@ function setMetro(on: boolean) {
   if (on) { const tick = () => { if (soundOn) playTick(); beatPulse(); }; tick(); metroTimer = setInterval(tick, BALANCE.rhythm.beatMs) as unknown as number; }
 }
 
-/* ---- 콤보 트래커(T0-09) — 엔진 ---- */
-const combo = createComboTracker('yeonpung');
+/* ---- 검술 트래커(T1-05) — 엔진(다중 검술 + 데미지) ---- */
+let tracker = createTechniqueTracker(currentStyle);
 
 /* ---- 렌더링: 잉크 궤적 + 비교 오버레이(T0-08) ---- */
 interface Overlay { user: Pt[] | null; ideal: Pt[] | null; grade: Grade }
@@ -135,7 +135,7 @@ function emitStroke(ev: StrokeEvent, extra?: string) {
   if (ev.grade !== 'miss') mastery[ev.strokeId] = (mastery[ev.strokeId] || 0) + gradePoints(ev.grade);
   playGrade(ev.grade); haptic(ev.grade);
   updateHud(ev, extra);
-  updateCombo(combo.feed(ev));
+  updateTech(tracker.feed(ev));
 }
 function gradePoints(g: Grade) { return ({ perfect: 5, great: 3, good: 2, bad: 1, miss: 0 } as Record<Grade, number>)[g] || 0; }
 
@@ -163,15 +163,19 @@ function rejectHud(reason: string) {
   $('#strokeName').textContent = '';
   ['#fDir', '#fStr', '#fSpd', '#fCmp'].forEach(s => ($(s) as HTMLElement).style.width = '0%');
 }
-function updateCombo(res: { name: string; avg: number; mana: number; power: number } | null) {
-  const on = combo.state();
-  const steps = TECHNIQUES.yeonpung.combo
-    .map((id, i) => `<span class="${i < on.length ? 'on' : 'off'}">${STROKE_TEMPLATES[id].name.replace(/\(.*\)/, '')}</span>`)
-    .join(' → ');
-  $('#comboSteps').innerHTML = steps;
-  if (res) {
-    $('#manaLine').textContent = `⚔ ${res.name}! 평균 ${res.avg} · 마나 ${res.mana}` + (res.power > 1 ? ` · 위력+20%` : '');
-    $('#manaLine').style.color = res.power > 1 ? 'var(--gold)' : 'var(--bone)';
+type TechRes = ReturnType<ReturnType<typeof createTechniqueTracker>['feed']>;
+function updateTech(res: TechRes) {
+  const prog = tracker.progress();
+  $('#comboSteps').innerHTML = prog.length
+    ? prog.map(p => `<span class="on">${p.name} ${p.matched}/${p.total}</span>`).join(' · ')
+    : '<span class="off">소드 아츠 대기</span>';
+  if (res && res.type === 'success') {
+    const flags = [res.perfectMult > 1 ? '위력+20%' : '', res.commandBonus ? '검결+10%' : '', res.stun ? '경직' : '', res.aoe ? '광역' : '', res.pierce ? '관통' : ''].filter(Boolean).join(' · ');
+    $('#manaLine').textContent = `⚔ ${res.name}! 데미지 ${res.damage} · 평균 ${res.avg} · 마나 ${res.mana}` + (flags ? ` · ${flags}` : '');
+    $('#manaLine').style.color = 'var(--gold)';
+  } else if (res && res.type === 'fail') {
+    $('#manaLine').textContent = `✗ ${res.name} 발동 실패! 마나 −${res.manaPenalty} · 경직 ${res.stunMs}ms`;
+    $('#manaLine').style.color = 'var(--blood)';
   }
 }
 
@@ -296,6 +300,7 @@ $('#btnSound').addEventListener('click', e => { soundOn = !soundOn; const b = e.
 $('#btnOverlay').addEventListener('click', e => { overlayOn = !overlayOn; const b = e.target as HTMLElement; b.classList.toggle('active', overlayOn); b.textContent = '오버레이 ' + (overlayOn ? 'ON' : 'OFF'); });
 $('#btnStyle').addEventListener('click', e => {
   currentStyle = otherStyle(currentStyle);   // StyleManager (T1-04)
+  tracker = createTechniqueTracker(currentStyle);
   (e.target as HTMLElement).textContent = '유파: ' + currentStyle.name; buildPad();
 });
 $('#btnMetro').addEventListener('click', e => {
@@ -356,4 +361,4 @@ function runSelfTest() {
 }
 
 /* ---- 부트 ---- */
-resize(); buildPad(); draw(); updateCombo(null); runSelfTest();
+resize(); buildPad(); draw(); updateTech(null); runSelfTest();

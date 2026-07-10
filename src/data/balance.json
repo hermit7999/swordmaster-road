@@ -16,6 +16,9 @@
     "circleWeights": { "radius": 0.5, "sweep": 0.3, "closure": 0.2 }
   },
   "comboWindow": 1500,
+  "basicAttackDamage": 10,
+  "commandBonusMode": "all_or_nothing",
+  "missPenalty": { "manaFraction": 0.3, "stunMs": 800 },
   "weights": { "direction": 0.40, "straight": 0.30, "speed": 0.15, "completion": 0.15 },
   "simulMs": 70,
   "commandResolveMs": 640,
