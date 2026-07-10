@@ -19,6 +19,12 @@
   "basicAttackDamage": 10,
   "commandBonusMode": "all_or_nothing",
   "missPenalty": { "manaFraction": 0.3, "stunMs": 800 },
+  "combat": {
+    "playerHp": 60, "manaMax": 40, "startMana": 20,
+    "parryDamage": { "good": 12, "great": 16, "perfect": 22 },
+    "manaRecoverHit": 6, "manaRecoverPerfect": 12,
+    "observeMs": 1600, "respondMs": 2200
+  },
   "weights": { "direction": 0.40, "straight": 0.30, "speed": 0.15, "completion": 0.15 },
   "simulMs": 70,
   "commandResolveMs": 640,

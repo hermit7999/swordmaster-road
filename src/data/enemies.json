@@ -1,0 +1,12 @@
+{
+  "goblin": {
+    "name": "고블린 척후",
+    "hp": 90,
+    "attacks": [
+      { "name": "횡참",   "dir": "→", "counter": "h_rl",   "counterName": "횡베기(우→좌)", "damage": 12 },
+      { "name": "역횡참", "dir": "←", "counter": "h_lr",   "counterName": "횡베기(좌→우)", "damage": 12 },
+      { "name": "내려베기", "dir": "↓", "counter": "v_up",   "counterName": "올려베기",       "damage": 12 },
+      { "name": "돌진",   "dir": "↑", "counter": "v_down", "counterName": "내려찍기",       "damage": 15 }
+    ]
+  }
+}

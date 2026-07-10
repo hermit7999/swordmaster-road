@@ -1,11 +1,11 @@
 // DOM/게임 계층 (T1-01: 순수부는 src/engine에서 임포트). 판정 로직은 여기 없음.
 import './style.css';
 import {
-  BALANCE, STROKE_TEMPLATES, STYLES,
+  BALANCE, STROKE_TEMPLATES, STYLES, ENEMIES,
   judgeStroke, recognizeCommand, judgeRhythm, gradeOf, createTechniqueTracker,
   bbox, resample, otherStyle,
 } from './engine';
-import type { Pt, Dir, Grade, Style, StrokeEvent, CommandInput } from './engine';
+import type { Pt, Dir, Grade, Style, StrokeEvent, CommandInput, Enemy, EnemyAttack } from './engine';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const canvas = document.querySelector('#ink') as HTMLCanvasElement;
@@ -132,6 +132,7 @@ const arbiter = (() => {
       return false;
     },
     release(ch: 'gesture' | 'command') { if (occupant === ch) occupant = null; },
+    get() { return occupant; },
   };
 })();
 
@@ -140,6 +141,7 @@ function emitStroke(ev: StrokeEvent, extra?: string) {
   if (ev.grade !== 'miss') mastery[ev.strokeId] = (mastery[ev.strokeId] || 0) + gradePoints(ev.grade);
   playGrade(ev.grade); haptic(ev.grade);
   updateHud(ev, extra);
+  if (combatActive) { if (awaitingParry) combatOnParry(ev); return; }  // T1-07 결전: 응수 창에서만 유효
   if (trainingActive) { trainingCtl.feed(ev); return; }   // T1-06 수련 모드로 라우팅
   updateTech(tracker.feed(ev));
 }
@@ -249,6 +251,93 @@ function finishTraining() {
   setTimeout(exitTraining, 1800);
 }
 
+/* ---- T1-07 결전(決戰) 전투 씬 (DOM). 관찰(觀察)→응수(應手)→해소(解消) FSM ---- */
+let combatActive = false, awaitingParry = false;
+let cbEnemy: Enemy, cbEnemyHpMax = 0, cbEnemyHp = 0, cbPlayerHp = 0, cbMana = 0;
+let cbAttack: EnemyAttack | null = null;
+let cbTimer: number | undefined;
+const CB = () => BALANCE.combat;
+const cbTxt = (sel: string, v: string) => { $(sel).textContent = v; };
+function cbBars() {
+  ($('#cbEnemyHp')).style.width = Math.max(0, cbEnemyHp / cbEnemyHpMax * 100) + '%';
+  ($('#cbPlayerHp')).style.width = Math.max(0, cbPlayerHp / CB().playerHp * 100) + '%';
+  ($('#cbMana')).style.width = Math.max(0, cbMana / CB().manaMax * 100) + '%';
+}
+// 방향별 오디오 큐 — 소리만으로 응수 방향 인지 가능(FR-FBK).
+const CUE_FREQ: Record<string, number> = { '→': 520, '←': 392, '↑': 720, '↓': 300 };
+function playCue(dir: string) {
+  if (!soundOn) return;
+  try {
+    audio = audio || new (AC())();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = 'sine'; o.frequency.value = CUE_FREQ[dir] || 440;
+    g.gain.setValueAtTime(0.0001, audio.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.2, audio.currentTime + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.35);
+    o.connect(g); g.connect(audio.destination);
+    o.start(); o.stop(audio.currentTime + 0.4);
+  } catch (e) { /* noop */ }
+}
+function enterCombat(enemyId = 'goblin') {
+  cbEnemy = ENEMIES[enemyId];
+  cbEnemyHpMax = cbEnemy.hp; cbEnemyHp = cbEnemy.hp;
+  cbPlayerHp = CB().playerHp; cbMana = CB().startMana;
+  combatActive = true; awaitingParry = false;
+  $('#combat').classList.add('on'); $('#hint').style.display = 'none'; $('#btnCombat').classList.add('active');
+  cbTxt('#cbEnemyName', cbEnemy.name); cbBars();
+  cbTxt('#cbLog', '결전 시작 — 적의 예고를 보고 응수하라 (소리로도 방향 인지 가능)');
+  cbTimer = setTimeout(cbObserve, 700) as unknown as number;
+}
+function exitCombat() {
+  combatActive = false; awaitingParry = false; clearTimeout(cbTimer);
+  $('#combat').classList.remove('on'); $('#btnCombat').classList.remove('active');
+}
+function cbNextHap() {
+  if (cbEnemyHp <= 0) return cbEnd(true);
+  if (cbPlayerHp <= 0) return cbEnd(false);
+  cbObserve();
+}
+function cbObserve() {
+  cbAttack = cbEnemy.attacks[Math.floor(Math.random() * cbEnemy.attacks.length)];
+  cbTxt('#cbPhase', '관찰(觀察)');
+  cbTxt('#cbTele', `적: ${cbAttack.name} ${cbAttack.dir} — 응수: ${cbAttack.counterName}`);
+  playCue(cbAttack.dir);
+  cbTimer = setTimeout(cbRespond, CB().observeMs) as unknown as number;
+}
+function cbRespond() {
+  cbTxt('#cbPhase', '응수(應手) — 지금!');
+  awaitingParry = true;
+  if (soundOn) playTick();  // "지금" 신호
+  cbTimer = setTimeout(() => combatOnParry(null), CB().respondMs) as unknown as number;
+}
+function combatOnParry(ev: StrokeEvent | null) {
+  if (!awaitingParry) return;
+  awaitingParry = false; clearTimeout(cbTimer);
+  const a = cbAttack!;
+  const ok = !!ev && ev.strokeId === a.counter && (ev.grade === 'good' || ev.grade === 'great' || ev.grade === 'perfect');
+  cbTxt('#cbPhase', '해소(解消)');
+  if (ok) {
+    const dmg = CB().parryDamage[ev!.grade as 'good' | 'great' | 'perfect'];
+    cbEnemyHp -= dmg;
+    cbMana = Math.min(CB().manaMax, cbMana + (ev!.grade === 'perfect' ? CB().manaRecoverPerfect : CB().manaRecoverHit));
+    cbTxt('#cbLog', `⚔ 반격! ${a.counterName}(${ev!.grade}) · 적 HP −${dmg}` + (ev!.grade === 'perfect' ? ' · 마나 회복+' : ''));
+  } else {
+    cbPlayerHp -= a.damage;
+    const what = ev ? (STROKE_TEMPLATES[ev.strokeId]?.name ?? ev.strokeId) : '무입력';
+    cbTxt('#cbLog', `✗ 응수 실패! ${a.name} 피격 · 내 HP −${a.damage} (${what})`);
+  }
+  cbBars();
+  cbTimer = setTimeout(cbNextHap, 950) as unknown as number;
+}
+function cbEnd(win: boolean) {
+  cbTxt('#cbPhase', win ? '승리(勝)' : '패배(敗)');
+  cbTxt('#cbLog', win ? '적을 쓰러뜨렸다! 결전에서 살아남았다.' : '쓰러졌다… 체크포인트에서 다시.');
+  awaitingParry = false;
+  setTimeout(exitCombat, 2200);
+}
+$('#btnCombat').addEventListener('click', () => { combatActive ? exitCombat() : enterCombat(); });
+$('#cbExit').addEventListener('click', exitCombat);
+
 /* ---- 검로(劍路) 입력: Pointer Events. T0-02 ---- */
 let drawing = false, points: Pt[] = [], t0 = 0, gRect: DOMRect | null = null;
 const relX = (e: PointerEvent) => e.clientX - gRect!.left, relY = (e: PointerEvent) => e.clientY - gRect!.top;
@@ -282,6 +371,10 @@ let cmdTimer: number | undefined;
 function pushCommandInput(dir: Dir) {
   const now = performance.now();
   while (cmdBuf.length && now - cmdBuf[0].t > BALANCE.commandWindow) cmdBuf.shift();
+  // InputArbiter v2: 아직 안 그린(점만 찍힌) 제스처는 커맨드가 선점(취소). 빠른 응수에서 의도 입력 드롭 방지.
+  if (cmdBuf.length === 0 && arbiter.get() === 'gesture' && drawing && points.length <= 1) {
+    arbiter.release('gesture'); drawing = false; liveTrail = null;
+  }
   if (cmdBuf.length === 0 && !arbiter.tryAcquire('command')) return;
   cmdBuf.push({ dir, t: now });
   flashKey(dir);

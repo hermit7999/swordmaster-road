@@ -41,6 +41,7 @@
       <button id="btnSound" class="active">소리 ON</button>
       <button id="btnOverlay" class="active">오버레이 ON</button>
       <button id="btnTrain">수련</button>
+      <button id="btnCombat">결전</button>
       <button id="btnDiag">자가진단</button>
     </div>
     <div id="diag"></div>
@@ -50,6 +51,15 @@
       <div id="trainDots"></div>
       <div id="trainHint">스승의 궤적을 따라 그어라(劍路) · 방향키/패드로도 가능(劍訣, 메트로놈 켜면 비트)</div>
       <button id="trainExit">수련 종료</button>
+    </div>
+    <div id="combat">
+      <div class="cbRow"><span id="cbEnemyName">적</span><div class="hpbar"><div id="cbEnemyHp" class="hpfill enemy"></div></div></div>
+      <div id="cbPhase">—</div>
+      <div id="cbTele"></div>
+      <div id="cbLog"></div>
+      <div class="cbRow"><span>나</span><div class="hpbar"><div id="cbPlayerHp" class="hpfill"></div></div></div>
+      <div class="cbRow"><span>기</span><div class="mpbar"><div id="cbMana" class="mpfill"></div></div></div>
+      <button id="cbExit">결전 종료</button>
     </div>
   </div>
 
