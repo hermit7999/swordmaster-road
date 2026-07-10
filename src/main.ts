@@ -222,7 +222,9 @@ const MASTER = {
   done: '기본기가 몸에 뱄구나. 다음 경지로 가자.',
 };
 function guideFor(strokeId: string): Pt[] {
-  const box = { x0: 0.22 * W, y0: 0.28 * H, w: 0.56 * W, h: 0.44 * H };
+  // 정사각형 상자 — 비정사각이면 사선 가이드 각도가 왜곡돼(가로 화면=얕은 사선) 따라 그으면 오분류됨. 중앙-하단 배치(상단 패널 회피).
+  const sz = Math.min(W, H) * 0.5;
+  const box = { x0: W / 2 - sz / 2, y0: H * 0.56 - sz / 2, w: sz, h: sz };
   return resample(STROKE_TEMPLATES[strokeId].path.map(([x, y]) => ({ x: box.x0 + x * box.w, y: box.y0 + y * box.h })), 24);
 }
 function setMaster(text: string, cls = '') { const m = $('#trainMaster'); m.textContent = text; m.className = cls; }
