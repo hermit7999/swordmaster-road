@@ -36,6 +36,12 @@ export function computeTechniqueDamage(techId: string, strokes: StrokeEvent[]): 
   return { avg: Math.round(avg), mana, damage, perfectMult, commandMult: Math.round(commandMult * 100) / 100, commandBonus };
 }
 
+// T-스파이크: 자유 공격 데미지 = 기본 획 데미지 × 등급 배율(balance.gradeMul). 순수.
+export function freeAttackDamage(grade: string): number {
+  const mul = (BALANCE.gradeMul as Record<string, number>)[grade] ?? 0;
+  return Math.round(BALANCE.basicAttackDamage * mul);
+}
+
 interface Buf { ev: StrokeEvent; t: number }
 export function createTechniqueTracker(style: Style = STYLES.uraken) {
   // 긴 조합 우선(가장 구체적인 검술을 먼저 성립).

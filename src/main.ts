@@ -4,7 +4,7 @@ import {
   BALANCE, STROKE_TEMPLATES, STYLES, ENEMIES, TRIALS, STAGES,
   CONSUMABLES, SWORDS, ITEMS, STORY,
   judgeStroke, recognizeCommand, judgeRhythm, gradeOf, createTechniqueTracker,
-  bbox, resample, levelFromXp, xpToNext, derivedStats,
+  bbox, resample, levelFromXp, xpToNext, derivedStats, freeAttackDamage,
 } from './engine';
 import type { Dialogue, DlgLine } from './engine';
 import type { Pt, Dir, Grade, Style, StrokeEvent, CommandInput, Enemy, EnemyAttack } from './engine';
@@ -173,6 +173,7 @@ function emitStroke(ev: StrokeEvent, extra?: string) {
   if (ev.grade !== 'miss') mastery[ev.strokeId] = (mastery[ev.strokeId] || 0) + gradePoints(ev.grade);
   playGrade(ev.grade); haptic(ev.grade);
   updateHud(ev, extra);
+  if (spikeActive) { spikeOnStroke(ev); return; }   // 스파이크 전투(자유 공격 + 방어)
   if (combatActive) {   // T1-07 결전: 응수 창에서만 판정. 그 외엔 무시 대신 피드백(무반응/의도차단 구분). 버그4
     if (awaitingParry) combatOnParry(ev);
     else toast('관찰 중(觀察) — 응수(應手) 신호를 기다려라');
@@ -485,6 +486,164 @@ function useItem(id: string) {
 }
 $('#btnCombat').addEventListener('click', () => { combatActive ? exitCombat() : enterCombat(); });
 $('#cbExit').addEventListener('click', exitCombat);
+
+/* ==== 스파이크 전투(프로토타입): 자유공격 + 콤보 + 방어 3층 + 타격감. 늑대 1종. ====
+   기존 결전(enterCombat)은 그대로 유지. 자가진단 개발 버튼에서 진입. 실시간(감속 없음). */
+let spikeActive = false, spikeParryOpen = false, spikeStaggered = false;
+let spEnemy: Enemy, spEnemyHpMax = 0, spEnemyHp = 0, spPlayerHp = 0, spMana = 0;
+let spAttack: EnemyAttack | null = null;
+let spAtkTimer: number | undefined, spWinTimer: number | undefined, spStaggerTimer: number | undefined;
+let feelShakeMul = 1, feelHitstopMul = 1;   // 자가진단 슬라이더 튜닝
+const SP = () => BALANCE.spike;
+const FEEL = () => BALANCE.feel;
+type SpArt = Extract<NonNullable<TechRes>, { type: 'success' }>;
+
+function spBars() {
+  ($('#spEnemyHp')).style.width = Math.max(0, spEnemyHp / spEnemyHpMax * 100) + '%';
+  ($('#spPlayerHp')).style.width = Math.max(0, spPlayerHp / SP().playerHp * 100) + '%';
+  ($('#spMana')).style.width = Math.max(0, spMana / SP().manaMax * 100) + '%';
+}
+function enterSpike() {
+  spEnemy = ENEMIES['wolf'];
+  spEnemyHpMax = SP().wolfHp; spEnemyHp = spEnemyHpMax;
+  spPlayerHp = SP().playerHp; spMana = SP().startMana;
+  spikeActive = true; spikeParryOpen = false; spikeStaggered = false;
+  tracker = createTechniqueTracker(currentStyle);   // 콤보 초기화
+  $('#spike').classList.add('on'); $('#app').classList.add('spike-open'); $('#hint').style.display = 'none';
+  $('#diag').style.display = 'none';
+  $('#spEnemyName').textContent = spEnemy.name; spBars();
+  $('#spLog').textContent = '검을 그어 공격하라(劍路/劍訣) — 늑대가 덤비면 예고 방향을 쳐내라';
+  $('#spTele').classList.remove('on'); $('#spTele').textContent = '';
+  setSceneBg('bg_forest', true);
+  const art = $('#spEnemyArt'); art.style.backgroundImage = '';
+  const img = spEnemy.image || 'enemy_wolf';
+  loadArt(img).then(i => { if (i && spikeActive) art.style.backgroundImage = `url("${artUrl(img)}")`; });
+  scheduleWolf();
+}
+function exitSpike() {
+  if (!spikeActive && !$('#spike').classList.contains('on')) return;
+  spikeActive = false; spikeParryOpen = false;
+  clearTimeout(spAtkTimer); clearTimeout(spWinTimer); clearTimeout(spStaggerTimer);
+  $('#spike').classList.remove('on'); $('#app').classList.remove('spike-open'); setSceneBg(null);
+}
+function scheduleWolf() {
+  if (!spikeActive) return;
+  clearTimeout(spAtkTimer);
+  const d = SP().atkMinMs + Math.random() * (SP().atkMaxMs - SP().atkMinMs);
+  spAtkTimer = setTimeout(wolfTelegraph, d) as unknown as number;
+}
+function wolfTelegraph() {
+  if (!spikeActive) return;
+  if (spikeStaggered) { scheduleWolf(); return; }
+  spAttack = spEnemy.attacks[Math.floor(Math.random() * spEnemy.attacks.length)];
+  $('#spTele').textContent = `${spAttack.dir}  ${spAttack.name} — 쳐내라! (${spAttack.counterName})`;
+  $('#spTele').classList.add('on');
+  playCue(spAttack.dir); if (soundOn) playTick();
+  spikeParryOpen = true;
+  spWinTimer = setTimeout(wolfLands, SP().windowMs) as unknown as number;
+}
+function wolfLands() {
+  spikeParryOpen = false; $('#spTele').classList.remove('on');
+  const a = spAttack!; spPlayerHp -= a.damage; spBars();
+  $('#spLog').textContent = `✗ ${a.name}에 물렸다 — HP −${a.damage}`;
+  feelShake(FEEL().shakeArtPx); haptic('miss');
+  if (spPlayerHp <= 0) return spEnd(false);
+  scheduleWolf();
+}
+function spTryParry(ev: StrokeEvent) {
+  const a = spAttack!;
+  const ok = ev.strokeId === a.counter && (ev.grade === 'good' || ev.grade === 'great' || ev.grade === 'perfect');
+  clearTimeout(spWinTimer); spikeParryOpen = false; $('#spTele').classList.remove('on');
+  if (ok) {
+    spMana = Math.min(SP().manaMax, spMana + SP().parryManaGain); spBars();
+    $('#spLog').textContent = `⚔ 쳐냈다! ${a.counterName}(${ev.grade}) — 늑대 경직! 지금 베어라`;
+    spStagger(); feelHit('great', false);
+  } else {
+    spPlayerHp -= a.damage; spBars();
+    $('#spLog').textContent = `✗ 헛쳤다 — ${a.name} 피격 HP −${a.damage}`;
+    feelShake(FEEL().shakeArtPx); haptic('miss');
+    if (spPlayerHp <= 0) return spEnd(false);
+    scheduleWolf();
+  }
+}
+function spStagger() {
+  spikeStaggered = true;
+  const el = $('#spEnemyArt'); el.classList.remove('stagger'); void el.offsetWidth; el.classList.add('stagger');
+  clearTimeout(spStaggerTimer);
+  spStaggerTimer = setTimeout(() => { spikeStaggered = false; if (spikeActive) scheduleWolf(); }, SP().staggerMs) as unknown as number;
+}
+function spikeOnStroke(ev: StrokeEvent) {
+  if (spikeParryOpen) { spTryParry(ev); return; }   // 방어 창: 다음 획은 쳐내기
+  const tech = tracker.feed(ev); updateTech(tech);   // 자유 공격(콤보 추적)
+  if (tech && tech.type === 'success') { spikeArtHit(tech); return; }
+  spikeBasicHit(ev);
+}
+function spikeBasicHit(ev: StrokeEvent) {
+  if (ev.grade === 'miss') { $('#spLog').textContent = '✗ 헛손질'; return; }
+  let dmg = freeAttackDamage(ev.grade);
+  if (spikeStaggered) dmg = Math.round(dmg * SP().staggerCounterMul);
+  spEnemyHp -= dmg; spBars();
+  const nm = STROKE_TEMPLATES[ev.strokeId]?.name ?? ev.strokeId;
+  $('#spLog').textContent = `⚔ ${nm}(${ev.grade}) · 적 −${dmg}` + (spikeStaggered ? ' (반격!)' : '');
+  feelHit(ev.grade, false); dmgPopup(dmg, ev.grade);
+  if (spEnemyHp <= 0) spEnd(true);
+}
+function spikeArtHit(tech: SpArt) {
+  let dmg = tech.damage;
+  if (spikeStaggered) dmg = Math.round(dmg * SP().staggerCounterMul);
+  spEnemyHp -= dmg; spMana = Math.max(0, spMana - Math.round(tech.mana)); spBars();
+  $('#spLog').textContent = `⚔⚔ ${tech.name}! 적 −${dmg}`;
+  feelHit('art', true); dmgPopup(dmg, 'art');
+  if (spEnemyHp <= 0) spEnd(true);
+}
+function spEnd(win: boolean) {
+  spikeParryOpen = false; clearTimeout(spAtkTimer); clearTimeout(spWinTimer); clearTimeout(spStaggerTimer);
+  $('#spTele').classList.remove('on');
+  $('#spLog').textContent = win ? '🐺 늑대를 쓰러뜨렸다! (스파이크 승리)' : '쓰러졌다… (스파이크 패배)';
+  setTimeout(() => exitSpike(), 1900);
+}
+// ---- 타격감(feel) ----
+function feelShake(px: number) {
+  const app = $('#app'); app.style.setProperty('--shake-px', (px * feelShakeMul) + 'px'); app.style.setProperty('--shake-ms', FEEL().shakeMs + 'ms');
+  app.classList.remove('shaking'); void app.offsetWidth; app.classList.add('shaking');
+  setTimeout(() => app.classList.remove('shaking'), FEEL().shakeMs);
+}
+function feelHit(grade: string, isArt: boolean) {
+  const art = $('#spEnemyArt'), sp = $('#spSplash');
+  art.style.setProperty('--flash-ms', FEEL().flashMs + 'ms');
+  art.classList.remove('hit'); sp.classList.remove('play'); void art.offsetWidth;
+  art.classList.add('hit'); sp.classList.add('play');
+  feelShake(isArt ? FEEL().shakeArtPx : FEEL().shakeHitPx);
+  playHit(isArt);
+  const base = isArt ? FEEL().hitstop.art : ((FEEL().hitstop as Record<string, number>)[grade] ?? 0);
+  const ms = Math.round(base * feelHitstopMul);
+  if (ms > 0) { art.style.transition = 'none'; art.classList.add('hitstop'); setTimeout(() => { art.style.transition = ''; art.classList.remove('hitstop'); }, ms); }
+}
+function dmgPopup(n: number, grade: string) {
+  const box = $('#spPopups'); const el = document.createElement('div'); el.className = 'dmgPop';
+  const col: Record<string, string> = { good: 'var(--bone)', great: 'var(--gold)', perfect: 'var(--gold)', art: '#ff6a3d', bad: '#b98a6a' };
+  el.style.color = col[grade] || 'var(--bone)';
+  el.style.setProperty('--pop-ms', FEEL().popupMs + 'ms');
+  el.textContent = grade === 'art' ? `${n}!` : String(n);
+  const ar = $('#spEnemyArt').getBoundingClientRect();
+  el.style.left = (ar.left + ar.width * (0.35 + Math.random() * 0.3)) + 'px';
+  el.style.top = (ar.top + ar.height * (0.3 + Math.random() * 0.2)) + 'px';
+  box.appendChild(el);
+  setTimeout(() => el.remove(), FEEL().popupMs + 60);
+}
+function playHit(isArt: boolean) {
+  if (!soundOn) return;
+  try {
+    audio = audio || new (AC())();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = 'square'; o.frequency.setValueAtTime(isArt ? 165 : 115, audio.currentTime);
+    o.frequency.exponentialRampToValueAtTime(48, audio.currentTime + 0.12);
+    g.gain.setValueAtTime(isArt ? 0.5 : 0.32, audio.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + (isArt ? 0.22 : 0.14));
+    o.connect(g); g.connect(audio.destination); o.start(); o.stop(audio.currentTime + 0.24);
+  } catch (e) { /* noop */ }
+}
+$('#spExit').addEventListener('click', exitSpike);
 
 /* ---- T1-08 승급 시험(昇級) 씬 (DOM). 마나 각성: 4획 연속(≤2s)·평균70+·미스 즉시중단 ---- */
 const CUR_TRIAL = 'mana_awakening';
@@ -1039,7 +1198,14 @@ function runSelfTest() {
   const ts = artTuneState();
   const curOverlay = ts.curCombat ? ts.overlayC : ts.overlayN;
   $('#diag').innerHTML = `<h4>자가진단 ${passed}/${T.length} 통과</h4>` +
+    `<div class="devrow"><button id="devSpike">[개발] ⚔ 스파이크 전투(늑대) 시작</button></div>` +
     `<div class="devrow"><button id="devStyle">[개발] 유파 전환 · 현재: ${currentStyle.name}</button></div>` +
+    `<div class="devtune">
+       <label>타격 흔들림 ×<b id="shVal">${feelShakeMul.toFixed(2)}</b>
+         <input id="shSlide" type="range" min="0" max="2.5" step="0.1" value="${feelShakeMul}"></label>
+       <label>히트스톱 ×<b id="hsVal">${feelHitstopMul.toFixed(2)}</b>
+         <input id="hsSlide" type="range" min="0" max="2.5" step="0.1" value="${feelHitstopMul}"></label>
+     </div>` +
     `<div class="devtune">
        <label>먹빛 오버레이 <b id="ovVal">${curOverlay.toFixed(2)}</b> <small>(${ts.curCombat ? '전투' : '일반'}${ts.hasBg ? '' : ' · 배경 없음'})</small>
          <input id="ovSlide" type="range" min="0" max="0.8" step="0.02" value="${curOverlay}"></label>
@@ -1049,6 +1215,11 @@ function runSelfTest() {
      </div>` +
     T.map(t => `<div class="${t.ok ? 'pass' : 'fail'}">${t.ok ? '✓' : '✗'} ${t.name}${t.extra != null ? ' · ' + t.extra : ''}</div>`).join('');
   const ds = document.querySelector('#devStyle'); if (ds) ds.addEventListener('click', devToggleStyle);
+  const dsp = document.querySelector('#devSpike'); if (dsp) dsp.addEventListener('click', () => { $('#diag').style.display = 'none'; ($('#btnDiag')).classList.remove('active'); enterSpike(); });
+  const sh = document.querySelector('#shSlide') as HTMLInputElement | null;
+  const hs = document.querySelector('#hsSlide') as HTMLInputElement | null;
+  if (sh) sh.addEventListener('input', () => { feelShakeMul = parseFloat(sh.value); const e = document.querySelector('#shVal'); if (e) e.textContent = feelShakeMul.toFixed(2); });
+  if (hs) hs.addEventListener('input', () => { feelHitstopMul = parseFloat(hs.value); const e = document.querySelector('#hsVal'); if (e) e.textContent = feelHitstopMul.toFixed(2); });
   const ov = document.querySelector('#ovSlide') as HTMLInputElement | null;
   const br = document.querySelector('#brSlide') as HTMLInputElement | null;
   if (ov) ov.addEventListener('input', () => { const v = parseFloat(ov.value); tuneArt({ overlay: v }); const e = document.querySelector('#ovVal'); if (e) e.textContent = v.toFixed(2); });

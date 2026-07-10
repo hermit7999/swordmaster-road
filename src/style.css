@@ -141,6 +141,46 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
 #playerHud { font-size: 11px; color: var(--gold); opacity: .9; margin-top: 4px; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 
+/* 스파이크 전투(프로토타입) — 전 화면이 공격 영역(제스처 통과), HUD만 오버레이 */
+/* 자유공격 화면: 상단 HUD·조작버튼·콤보는 가리되 가상패드(#pad)는 유지(검결 공격 가능). */
+#app.spike-open #hud, #app.spike-open #ctrl, #app.spike-open #comboBox, #app.spike-open #hint { visibility: hidden; }
+#spike { position: absolute; inset: 0; z-index: 22; pointer-events: none; display: none; }
+#spike.on { display: block; }
+#spEnemyArt.hitstop { transform: translateX(-50%) scale(1.09); }
+#spTop { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: min(520px, 88%);
+  display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--bone);
+  background: rgba(18,15,12,.7); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; }
+#spEnemyArt { position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+  width: min(260px, 54%); height: 40%; background-size: contain; background-position: center top;
+  background-repeat: no-repeat; filter: drop-shadow(0 6px 16px rgba(0,0,0,.6)); }
+#spEnemyArt.hit { animation: spHit var(--flash-ms, 130ms) ease; }
+@keyframes spHit { 0% { filter: brightness(3) saturate(.2) drop-shadow(0 6px 16px rgba(0,0,0,.6)); } 100% { filter: brightness(1) drop-shadow(0 6px 16px rgba(0,0,0,.6)); } }
+#spEnemyArt.stagger { animation: spStagger .5s ease; }
+@keyframes spStagger { 0%,100% { transform: translateX(-50%) rotate(0); } 25% { transform: translate(-58%,4px) rotate(-7deg); } 70% { transform: translate(-44%,0) rotate(5deg); } }
+#spSplash { position: absolute; inset: 0; opacity: 0; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(20,15,12,.9) 20%, rgba(20,15,12,0) 46%); background-repeat: no-repeat;
+  background-position: 55% 45%; background-size: 60% 60%; }
+#spSplash.play { animation: splash 220ms ease-out; }
+#spTele { position: absolute; top: 44%; left: 50%; transform: translateX(-50%); text-align: center;
+  font-size: clamp(22px, 5.5vw, 44px); font-weight: 900; color: var(--blood); letter-spacing: 2px;
+  text-shadow: 0 0 22px rgba(156,47,38,.9), 0 2px 4px #000; opacity: 0; }
+#spTele.on { opacity: 1; animation: telePulse .42s ease-in-out infinite alternate; }
+@keyframes telePulse { from { transform: translateX(-50%) scale(1); } to { transform: translateX(-50%) scale(1.14); } }
+#spLog { position: absolute; top: 30%; left: 50%; transform: translateX(-50%); width: min(560px,90%);
+  text-align: center; font-size: 13px; color: var(--bone); opacity: .82; text-shadow: 0 1px 3px #000; }
+#spBottom { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); width: min(520px,88%);
+  display: flex; flex-direction: column; gap: 5px; background: rgba(18,15,12,.68);
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; }
+#spExit { position: absolute; top: 10px; right: 12px; pointer-events: auto; font-size: 11px; color: var(--bone);
+  background: rgba(18,15,12,.85); border: 1px solid var(--line); border-radius: 7px; padding: 4px 10px; cursor: pointer; }
+#spPopups { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.dmgPop { position: absolute; font-weight: 900; font-size: clamp(20px, 4.5vw, 34px); pointer-events: none;
+  text-shadow: 0 2px 6px rgba(0,0,0,.85); animation: dmgPop var(--pop-ms, 750ms) ease-out forwards; }
+@keyframes dmgPop { 0% { opacity: 0; transform: translate(-50%, 0) scale(.6); } 16% { opacity: 1; transform: translate(-50%,-8px) scale(1.15); } 100% { opacity: 0; transform: translate(-50%,-58px) scale(1); } }
+/* 화면 흔들림(타격감) */
+#app.shaking { animation: screenShake var(--shake-ms, 220ms) ease; }
+@keyframes screenShake { 0%,100% { transform: translate(0,0); } 20% { transform: translate(var(--shake-px,5px), calc(var(--shake-px,5px) * -0.6)); } 45% { transform: translate(calc(var(--shake-px,5px) * -0.8), var(--shake-px,5px)); } 70% { transform: translate(calc(var(--shake-px,5px) * 0.5), calc(var(--shake-px,5px) * -0.4)); } }
+
 /* 승급 시험(昇級) 오버레이 */
 #trial { position: absolute; top: 48px; left: 50%; transform: translateX(-50%); z-index: 22; pointer-events: none;
   display: none; flex-direction: column; align-items: center; gap: 8px; text-align: center;

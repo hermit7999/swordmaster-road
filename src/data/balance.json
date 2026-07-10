@@ -42,6 +42,17 @@
   },
   "art": { "bgOverlay": 0.30, "bgOverlayCombat": 0.40, "bgBrightness": 1.12, "titleGradient": 0.85, "hitFlashMs": 200 },
   "links": { "feedback": "" },
+  "gradeMul": { "miss": 0, "bad": 0.5, "good": 1.0, "great": 1.2, "perfect": 1.5 },
+  "feel": {
+    "hitstop": { "good": 60, "great": 85, "perfect": 110, "art": 130 },
+    "shakeHitPx": 5, "shakeArtPx": 13, "shakeMs": 220,
+    "popupMs": 750, "flashMs": 130, "knockPx": 10
+  },
+  "spike": {
+    "wolfHp": 80, "playerHp": 60, "manaMax": 40, "startMana": 10,
+    "atkMinMs": 3200, "atkMaxMs": 6000, "windowMs": 1050, "telegraphLeadMs": 500,
+    "wolfDamage": 12, "staggerMs": 1300, "staggerCounterMul": 1.6, "parryManaGain": 8
+  },
   "difficultyEase": { "standard": 1.0, "lenient": 1.25 },
   "dialogueSpeed": { "slow": 1.5, "normal": 1.0, "fast": 0.55 },
   "padScale": { "small": 0.82, "normal": 1.0, "large": 1.22 },

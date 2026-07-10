@@ -50,6 +50,17 @@ export interface Balance {
   };
   art: { bgOverlay: number; bgOverlayCombat: number; bgBrightness: number; titleGradient: number; hitFlashMs: number };
   links: { feedback: string };
+  gradeMul: Record<string, number>;
+  feel: {
+    hitstop: Record<string, number>;
+    shakeHitPx: number; shakeArtPx: number; shakeMs: number;
+    popupMs: number; flashMs: number; knockPx: number;
+  };
+  spike: {
+    wolfHp: number; playerHp: number; manaMax: number; startMana: number;
+    atkMinMs: number; atkMaxMs: number; windowMs: number; telegraphLeadMs: number;
+    wolfDamage: number; staggerMs: number; staggerCounterMul: number; parryManaGain: number;
+  };
   difficultyEase: Record<string, number>;
   dialogueSpeed: Record<string, number>;
   padScale: Record<string, number>;
