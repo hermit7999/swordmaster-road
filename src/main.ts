@@ -847,9 +847,19 @@ function runNodeScene(id: string) {
     return;
   }
   if (n.type === 'training') {
-    afterScene = (success) => { if (success) advanceTo(id); enterMap(); };
+    // 성공 시: 진행 + 완료 대사(after_<id>) → 지도. (온보딩: 수련 끝 → 스승이 사냥 지시)
+    afterScene = (success) => {
+      if (success) { advanceTo(id); playAfterNode(id, () => enterMap()); }
+      else enterMap();
+    };
     exitMap(); enterTraining();
   }
+}
+// 노드 완료 후 대사(after_<id>) 1회 재생 → 콜백. 없으면 즉시 콜백.
+function playAfterNode(id: string, done: () => void) {
+  const key = 'after_' + id;
+  if (STORY[key] && !seenDialogues.has(key)) { seenDialogues.add(key); saveGame(); playDialogue(key, done); }
+  else done();
 }
 $('#btnMap').addEventListener('click', () => { mapActive ? exitMap() : enterMap(); });
 $('#mapExit').addEventListener('click', exitMap);

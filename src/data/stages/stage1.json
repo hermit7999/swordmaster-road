@@ -3,15 +3,15 @@
     "name": "스테이지 1 — 몰락한 검문(劍門)",
     "start": "start",
     "nodes": {
-      "start": { "zone": "전반",     "col": 0, "type": "rest",     "label": "출발",   "next": ["b1", "t1"] },
-      "b1":    { "zone": "전반",     "col": 1, "type": "battle",   "battleKind": "encounter", "enemy": "goblin", "label": "조우", "next": ["e1"] },
-      "t1":    { "zone": "전반",     "col": 1, "type": "training", "label": "수련",   "next": ["e1"] },
-      "e1":    { "zone": "전반",     "col": 2, "type": "event",    "label": "갈림길", "next": ["b2", "s1"] },
-      "b2":    { "zone": "중반",     "col": 3, "type": "battle",   "battleKind": "elite", "enemy": "swordsman", "label": "정예", "next": ["r1"] },
-      "s1":    { "zone": "중반",     "col": 3, "type": "shop",     "label": "행상",   "next": ["r1"] },
-      "r1":    { "zone": "중반",     "col": 4, "type": "rest",     "label": "야영",   "next": ["e2"] },
-      "e2":    { "zone": "보스 관문", "col": 5, "type": "event",    "label": "결의",   "next": ["boss"] },
-      "boss":  { "zone": "보스 관문", "col": 6, "type": "battle",   "battleKind": "boss", "enemy": "ilseomgwi", "label": "관문장", "next": [] }
+      "start": { "zone": "전반",     "col": 0, "type": "rest",     "label": "출발",   "next": ["t1"] },
+      "t1":    { "zone": "전반",     "col": 1, "type": "training", "label": "수련",   "next": ["b1"] },
+      "b1":    { "zone": "전반",     "col": 2, "type": "battle",   "battleKind": "encounter", "enemy": "goblin", "label": "조우", "next": ["e1"] },
+      "e1":    { "zone": "전반",     "col": 3, "type": "event",    "label": "갈림길", "next": ["b2", "s1"] },
+      "b2":    { "zone": "중반",     "col": 4, "type": "battle",   "battleKind": "elite", "enemy": "swordsman", "label": "정예", "next": ["r1"] },
+      "s1":    { "zone": "중반",     "col": 4, "type": "shop",     "label": "행상",   "next": ["r1"] },
+      "r1":    { "zone": "중반",     "col": 5, "type": "rest",     "label": "야영",   "next": ["e2"] },
+      "e2":    { "zone": "보스 관문", "col": 6, "type": "event",    "label": "결의",   "next": ["boss"] },
+      "boss":  { "zone": "보스 관문", "col": 7, "type": "battle",   "battleKind": "boss", "enemy": "ilseomgwi", "label": "관문장", "next": [] }
     }
   }
 }

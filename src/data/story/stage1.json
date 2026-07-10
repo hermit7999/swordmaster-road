@@ -36,10 +36,15 @@
     { "speaker": "현곡", "portrait": "portrait_master", "text": "관문 너머에 적하(赤霞)의 수하가 있다. 거기까지가 오늘의 검이다." }
   ] },
   "node_t1": { "lines": [
-    { "speaker": "현곡", "portrait": "portrait_master", "text": "보고(觀) 응하는(應) 리듬을 몸에 새겨라. 검은 급할수록 보이지 않는다." }
+    { "speaker": "현곡", "portrait": "portrait_master", "text": "검을 겨누기 전에, 검을 다루는 법부터다. 저 장작을 베어라." },
+    { "speaker": "현곡", "portrait": "portrait_master", "text": "기본 세 획 — 횡으로 베고, 비스듬히 긋고, 위에서 내려찍어라. 몸이 길을 외울 때까지." }
+  ] },
+  "after_t1": { "lines": [
+    { "speaker": "현곡", "portrait": "portrait_master", "text": "되었다. 손이 검을 기억하는구나 — 기본 동작은 익혔다." },
+    { "speaker": "현곡", "portrait": "portrait_master", "text": "이제 검문 밖으로 나가, 어슬렁대는 잔당 하나를 베어 오너라. 그것이 네 첫 실전이다." }
   ] },
   "node_b1": { "lines": [
-    { "speaker": "무명", "portrait": "portrait_hero", "side": "right", "text": "…처음으로, 남을 겨눈다." }
+    { "speaker": "무명", "portrait": "portrait_hero", "side": "right", "text": "스승의 명. …처음으로, 살아 있는 것에 검을 겨눈다." }
   ] },
   "node_e1": { "lines": [
     { "text": "두 갈래 길. 한쪽엔 봇짐장수의 등불, 한쪽엔 검은 기운이 어렸다." },
