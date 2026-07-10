@@ -3,7 +3,7 @@ import './style.css';
 import {
   BALANCE, STROKE_TEMPLATES, TECHNIQUES, STYLES,
   judgeStroke, recognizeCommand, judgeRhythm, gradeOf, createComboTracker,
-  bbox, resample,
+  bbox, resample, otherStyle,
 } from './engine';
 import type { Pt, Dir, Grade, Style, StrokeEvent, CommandInput } from './engine';
 
@@ -295,7 +295,7 @@ function toast(msg: string) {
 $('#btnSound').addEventListener('click', e => { soundOn = !soundOn; const b = e.target as HTMLElement; b.classList.toggle('active', soundOn); b.textContent = '소리 ' + (soundOn ? 'ON' : 'OFF'); });
 $('#btnOverlay').addEventListener('click', e => { overlayOn = !overlayOn; const b = e.target as HTMLElement; b.classList.toggle('active', overlayOn); b.textContent = '오버레이 ' + (overlayOn ? 'ON' : 'OFF'); });
 $('#btnStyle').addEventListener('click', e => {
-  currentStyle = currentStyle === STYLES.uraken ? STYLES.saken : STYLES.uraken;
+  currentStyle = otherStyle(currentStyle);   // StyleManager (T1-04)
   (e.target as HTMLElement).textContent = '유파: ' + currentStyle.name; buildPad();
 });
 $('#btnMetro').addEventListener('click', e => {

@@ -5,6 +5,14 @@
 
 ---
 
+- 2026-07-10 [Claude/Opus] **T1-04 유파 정식화**. `src/engine/style.ts` StyleManager 신설.
+  · **아키텍처 판단(게임플레이 불변, 명시)**: 미러는 좌표 기반(입력을 canonical=우수로 접기) 유지. v2가 제안한
+    "획ID 매핑 테이블로 단순화"는 원(wonmu) 손방향(chirality)에서 어긋나므로 채택 안 함(좌표 미러가 더 정확).
+    → 판정 strokeId는 항상 canonical이라 **검술 조합을 canonical로 정의하면 두 유파에서 자동 동작**(연풍참 좌수판 별도 오버라이드 불필요).
+  · StyleManager: 미러 획ID맵(h_lr↔h_rl·diag_dr↔diag_dl, 나머지 자기자신), techniqueCombo(오버라이드 지점—우수/좌수는 비어 있음, 미러 아닌 미래 유파용), updownCluster, otherStyle. 게임 유파 토글을 otherStyle로 연결.
+  · 검증: 8획 전부 좌수(미러 입력)에서 canonical 판정, 원무 좌수 chirality 정상. vitest 72종 통과, 빌드 OK.
+  · 주의: 완료기준의 "검술 6종 좌수 동작"은 검술이 T1-05에서 생기므로 그때 실증(메커니즘=fold-to-canonical이 보장).
+
 - 2026-07-10 [Claude/Opus] **T1-03 검결 8종 + 리듬 + OI-12**. (커맨드는 strokes.json에 이미 정의 — →←/↓+←/↓↑/→→/원무 →↓←↑.)
   · **버그 수정(중요)**: judgeRhythm이 동시입력(chord ↓+→)의 순서를 엄격히 봐서, →가 ↓보다 먼저 들어오면 order-miss.
     → 동일 이상오프셋(동시) 연속 토큰을 "그룹"으로 묶어 그룹 내 순서 무관 멀티셋 매칭. 실측 사선 성공률 62%→~100%.

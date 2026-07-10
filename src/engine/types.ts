@@ -17,7 +17,12 @@ export interface StrokeSpec {
   minLenRatio?: number;             // 예: 찌르기 0.05
   speedMs?: { min: number; max: number };  // 예: 찌르기 60~300
 }
-export interface Style { name: string; mirrorX: boolean; updownCluster: 'left' | 'right' }
+export interface Style {
+  name: string;
+  mirrorX: boolean;
+  updownCluster: 'left' | 'right';
+  techniqueOverrides?: Record<string, string[]>;  // 미러 아닌 미래 유파용 검술 조합 오버라이드(우수/좌수는 없음)
+}
 export interface Breakdown { direction: number; straight: number; speed: number; completion: number }
 
 export interface JudgeResult {
