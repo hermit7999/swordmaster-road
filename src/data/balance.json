@@ -39,6 +39,7 @@
     "xpPerWin": { "encounter": 10, "elite": 25, "boss": 60 },
     "startGold": 20
   },
+  "art": { "bgOverlay": 0.52, "bgOverlayCombat": 0.62, "titleGradient": 0.85, "hitFlashMs": 200 },
   "weights": { "direction": 0.40, "straight": 0.30, "speed": 0.15, "completion": 0.15 },
   "simulMs": 70,
   "commandResolveMs": 640,

@@ -7,6 +7,7 @@ import {
   bbox, resample, otherStyle, levelFromXp, xpToNext, derivedStats,
 } from './engine';
 import type { Pt, Dir, Grade, Style, StrokeEvent, CommandInput, Enemy, EnemyAttack } from './engine';
+import { loadArt, setSceneBg, artUrl } from './art';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const canvas = document.querySelector('#ink') as HTMLCanvasElement;
@@ -263,12 +264,13 @@ const trainingCtl = {
 function enterTraining() {
   trainingActive = true; trainIdx = 0; trainBusy = false;
   $('#train').classList.add('on'); $('#hint').style.display = 'none'; $('#btnTrain').classList.add('active');
+  setSceneBg('bg_training');
   loadTrainTarget();
 }
 let trainDone = false;
 function exitTraining() {
   trainingActive = false; trainGuide = null;
-  $('#train').classList.remove('on'); $('#btnTrain').classList.remove('active');
+  $('#train').classList.remove('on'); $('#btnTrain').classList.remove('active'); setSceneBg(null);
   const s = trainDone; trainDone = false; runAfterScene(s);   // 맵 복귀(완주 여부 전달)
 }
 function finishTraining() {
@@ -289,6 +291,20 @@ function cbBars() {
   ($('#cbEnemyHp')).style.width = Math.max(0, cbEnemyHp / cbEnemyHpMax * 100) + '%';
   ($('#cbPlayerHp')).style.width = Math.max(0, cbPlayerHp / cbPlayerHpMax * 100) + '%';
   ($('#cbMana')).style.width = Math.max(0, cbMana / CB().manaMax * 100) + '%';
+}
+// 적 아트 지연 로드. 실패 시 아트 영역 숨김(기존 도형/텍스트 UI만 유지 — 폴백).
+function loadEnemyArt(name?: string) {
+  const el = $('#cbEnemyArt'); el.classList.remove('on', 'hit'); el.style.backgroundImage = '';
+  if (!name) return;
+  loadArt(name).then(img => { if (img && combatActive) { el.style.backgroundImage = `url("${artUrl(name)}")`; el.classList.add('on'); } });
+}
+// 피격 연출: 잉크 스플래시 + 짧은 명멸(balance.art.hitFlashMs).
+function enemyHitFx() {
+  const art = $('#cbEnemyArt'), sp = $('#cbSplash');
+  const ms = BALANCE.art.hitFlashMs;
+  art.style.setProperty('--hitms', ms + 'ms'); sp.style.setProperty('--hitms', ms + 'ms');
+  art.classList.remove('hit'); sp.classList.remove('play'); void art.offsetWidth;   // 리플로우로 애니 재시작
+  art.classList.add('hit'); sp.classList.add('play');
 }
 // 방향별 오디오 큐 — 소리만으로 응수 방향 인지 가능(FR-FBK).
 const CUE_FREQ: Record<string, number> = { '→': 520, '←': 392, '↑': 720, '↓': 300 };
@@ -319,6 +335,8 @@ function enterCombat(enemyId = 'goblin', kind: 'encounter' | 'elite' | 'boss' = 
   combatActive = true; awaitingParry = false; combatResult = 'quit';   // 중도이탈 기본
   $('#combat').classList.add('on'); $('#hint').style.display = 'none'; $('#btnCombat').classList.add('active');
   cbTxt('#cbEnemyName', cbEnemy.name); cbBars();
+  loadEnemyArt(cbEnemy.image);
+  setSceneBg(kind === 'boss' ? 'bg_bossgate' : 'bg_forest', true);   // 씬 배경(전투)
   if (kind === 'encounter') {
     cbTxt('#cbLog', '조우(遭遇) — 적이 급습한다! 예고 방향으로 즉시 일섬(一閃)하라');
     cbTimer = setTimeout(cbEncounter, 600) as unknown as number;
@@ -341,7 +359,7 @@ function cbEncounter() {
 function cbEncounterResolve(ev: StrokeEvent | null) {
   const a = cbAttack!;
   const ok = !!ev && ev.strokeId === a.counter && (ev.grade === 'good' || ev.grade === 'great' || ev.grade === 'perfect');
-  cbEnemyHp = 0; cbBars();
+  cbEnemyHp = 0; cbBars(); if (ok) enemyHitFx();
   cbTxt('#cbPhase', ok ? '섬광(閃光)' : '스침(掠)');
   const r = grantReward('encounter');
   if (ok) cbTxt('#cbLog', `⚡ 섬광 일격! ${a.counterName}(${ev!.grade}) — 적을 베고 지나쳤다 · ${r}`);
@@ -353,6 +371,7 @@ let combatWon = false, combatResult: 'win' | 'lose' | 'quit' = 'quit';
 function exitCombat() {
   combatActive = false; awaitingParry = false; clearTimeout(cbTimer);
   $('#combat').classList.remove('on'); $('#btnCombat').classList.remove('active');
+  $('#cbEnemyArt').classList.remove('on', 'hit'); setSceneBg(null);
   const s = combatWon; combatWon = false; runAfterScene(s);   // 맵 복귀(승리 여부 전달)
 }
 function cbNextHap() {
@@ -384,7 +403,7 @@ function combatOnParry(ev: StrokeEvent | null) {
   cbTxt('#cbPhase', '해소(解消)');
   if (ok) {
     const dmg = CB().parryDamage[ev!.grade as 'good' | 'great' | 'perfect'] + playerStats().power;  // T2-04 위력 반영
-    cbEnemyHp -= dmg;
+    cbEnemyHp -= dmg; enemyHitFx();
     cbMana = Math.min(CB().manaMax, cbMana + (ev!.grade === 'perfect' ? CB().manaRecoverPerfect : CB().manaRecoverHit));
     cbTxt('#cbLog', `⚔ 반격! ${a.counterName}(${ev!.grade}) · 적 HP −${dmg}` + (ev!.grade === 'perfect' ? ' · 마나 회복+' : ''));
   } else {
@@ -563,9 +582,10 @@ function restoreCheckpoint() {
 function enterMap() {
   mapActive = true; $('#map').classList.add('on'); $('#hint').style.display = 'none'; $('#btnMap').classList.add('active');
   $('#mapTitle').textContent = STAGE.name;
+  setSceneBg('bg_nodemap');
   renderMap();
 }
-function exitMap() { mapActive = false; $('#map').classList.remove('on'); $('#btnMap').classList.remove('active'); }
+function exitMap() { mapActive = false; $('#map').classList.remove('on'); $('#btnMap').classList.remove('active'); setSceneBg(null); }
 function renderMap() {
   const nodes = STAGE.nodes;
   const cur = nodes[mapCurrent];
@@ -630,11 +650,14 @@ let shopActive = false;
 function enterShop() {
   shopActive = true; $('#shop').classList.add('on'); $('#hint').style.display = 'none';
   $('#shopHint').textContent = '';
+  setSceneBg('bg_camp');
+  const pt = $('#shopPortrait'); pt.classList.remove('on'); pt.style.backgroundImage = '';
+  loadArt('portrait_merchant').then(img => { if (img && shopActive) { pt.style.backgroundImage = `url("${artUrl('portrait_merchant')}")`; pt.classList.add('on'); } });
   renderShop();
 }
 function exitShop() {
   if (!shopActive) return;
-  shopActive = false; $('#shop').classList.remove('on');
+  shopActive = false; $('#shop').classList.remove('on'); setSceneBg(null);
   runAfterScene(true);
 }
 function renderShop() {

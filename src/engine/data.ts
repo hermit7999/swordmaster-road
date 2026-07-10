@@ -46,6 +46,7 @@ export interface Balance {
     xpPerWin: Record<string, number>;
     startGold: number;
   };
+  art: { bgOverlay: number; bgOverlayCombat: number; titleGradient: number; hitFlashMs: number };
   weights: { direction: number; straight: number; speed: number; completion: number };
   simulMs: number;
   commandResolveMs: number;
@@ -58,7 +59,7 @@ export interface Technique {
   stun?: boolean; aoe?: boolean; pierce?: boolean;
 }
 export interface EnemyAttack { name: string; dir: string; counter: string; counterName: string; damage: number }
-export interface Enemy { name: string; hp: number; attacks: EnemyAttack[] }
+export interface Enemy { name: string; hp: number; image?: string; attacks: EnemyAttack[] }
 export interface Trial { name: string; strokes: string[]; intervalMs: number; avgPass: number }
 export interface Item { name: string; kind: 'consumable' | 'sword'; effect?: string; value?: number; power?: number; price: number; desc: string; source: string[] }
 export type NodeType = 'battle' | 'training' | 'event' | 'shop' | 'rest';

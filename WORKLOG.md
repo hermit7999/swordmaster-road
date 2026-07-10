@@ -323,3 +323,15 @@ OI-12(원무 커맨드 난이도)는 원무가 M1 범위라 M0 DoD 아님(보류
   · HUD에 진행 상태 라인(#playerHud): Lv·냥·HP·위력·검·다음Lv.
   · 검증(브라우저 실증): 조우 승리 20→28냥·xp0→10 / 상점 200→90냥·청강검 장착 위력+3·지혈단 구매 / 관찰서 지혈단 사용 HP+20·응수서 버튼 비활성 / xp35→조우승리 Lv1→2·HP60→70·위력0→2. vitest 111/111, tsc 무경고, build OK.
   · 미완/주의: 아이템 밸런스·섬광 임계·검 가격은 T2-08 튜닝 대상. 상점 재고 무한(1회성 아님). 브라우저 스크린샷 도구가 이 세션서 응답행(DOM eval은 정상) — 검증은 DOM 판독으로 수행.
+
+- 2026-07-10 [Claude] 아트 16장 반영 — WebP 최적화 + 씬별 지연로딩 + 폴백
+  · 소스: AI 생성(Gemini), 라이선스 확인 완료. 원본 16장 PNG(26.82MB)를 assets/art/raw/에 보존.
+  · 최적화: Pillow로 WebP(q80) 변환 — 배경 native폭 유지·초상/적 800px 축소 → public/art/*.webp 총 1.23MB(95%↓). dist 총 1.4MB (NFR-003 20MB 목표 크게 충족).
+  · src/art.ts: artUrl/loadArt(지연·캐시)/setSceneBg(먹빛 오버레이 balance.art). 로드 실패 시 배경 미표시·아트 숨김 → 기존 도형/텍스트 UI 폴백.
+  · 씬 배경 배선: 노드맵 bg_nodemap·수련 bg_training·전투 bg_forest(보스=bg_bossgate)·상점 bg_camp. 씬 진입 시 로드, 이탈 시 해제.
+  · 전투: enemies.json goblin에 image 필드, #cbEnemyArt 적 아트 표시 + 피격 시 잉크 스플래시(#cbSplash)·짧은 명멸(balance.art.hitFlashMs 200ms). 미등록 적 5종(wolf/bandit/swordsman/insect/boss_stage1)은 이미지만 대기 → T2-06 연결.
+  · 상점: 행상 초상(portrait_merchant) 원형 표시.
+  · 초상 hero/master/rival: 대화 시스템(T2-05) 승인 후 배선 예정 — 로더는 준비됨.
+  · #sceneBg z-index:0 / #stage z-index:1 — 배경은 캔버스·HUD 뒤, 제스처 입력 무간섭(씬 패널 규칙 유지).
+  · 검증(브라우저 실증): 씬별 webp 200 OK·지연로딩(노드맵 진입 시 nodemap만 로드) / 노드맵·수련·숲·보스관문·야영 배경 + 고블린 적아트 + 행상 초상 + 스플래시/명멸 애니 바인딩(0.2s) 확인. tsc 무경고·vitest 111/111·build OK(dist/art 16장).
+  · 주의: 브라우저 스크린샷 도구가 이 세션서 응답행(WebP+애니로 컴포지터 점유 추정, DOM/네트워크는 정상) — 폰 실기 확인 권장. 원본 raw 26MB git 포함(보존 지시).
