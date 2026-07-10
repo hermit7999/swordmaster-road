@@ -5,6 +5,12 @@
 
 ---
 
+- 2026-07-10 [Claude/Opus] **버그4 전수 마감(캔버스 위 표시요소 pointer-events 원칙 정착)**. 사용자 추가단서: 수련에서도 중앙 표시상자가 터치 삼킴.
+  · 남은 표시요소도 `pointer-events:none`: #cmdToast·#beatDot(투명 opacity0에도 중앙하단 삼킴)·#diag. (앞서 #combat/#train/#trial 패널은 처리됨.)
+  · **원칙 정착(CLAUDE.md 규칙 #8)**: 제스처 캔버스 위 모든 표시요소는 기본 pointer-events:none, 버튼 등 인터랙션만 auto. 전 씬 화면 전체가 검로 영역.
+  · **4개 씬 전수 점검(3×3 grid hit-test)**: 자유/결전/승급 = 전부 캔버스 통과 ✓, 수련 = 통과(예외는 실제 종료버튼 1점만). 
+  · 검증: vitest 87/87, 빌드 OK, 자가진단 28/28.
+
 - 2026-07-10 [Claude/Opus] **버그4 수정(결전 제스처 무반응) + 버그3 진단(사선)**. 페이즈 FSM·판정엔진 불변.
   · **버그4 원인**: #combat 패널(pointer-events:auto, 높이~256px, 중앙정렬)이 폰 짧은 화면 대부분을 덮어 중앙 제스처를 삼킴. 패드는 좌우 코너(패널 밖)라 검결만 동작. hit-test로 확인.
     수정: 씬 패널(#combat/#train/#trial) `pointer-events:none`, 내부 버튼만 `auto` → 제스처가 패널 통과해 캔버스 도달. + 관찰/해소 중 입력 시 "관찰 중 — 응수 신호를 기다려라" 피드백(무반응/의도차단 구분).
