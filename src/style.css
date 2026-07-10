@@ -223,6 +223,15 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
 .mapnode:disabled { cursor: default; }
 @keyframes nodepulse { 0%,100% { box-shadow: 0 0 0 0 rgba(201,168,106,.0); } 50% { box-shadow: 0 0 8px 1px rgba(201,168,106,.5); } }
 #mapHint { font-size: 12px; opacity: .8; text-align: center; }
+/* 데스크톱/넓은 화면에서 노드맵 확대(작게 보이던 문제) */
+@media (min-width: 900px) {
+  .mapnode { width: 122px; padding: 16px 8px; font-size: 15px; gap: 5px; border-radius: 14px; }
+  .mapnode .ic { font-size: 34px; }
+  #mapGrid { gap: 34px; padding: 12px; }
+  .mapcol { gap: 24px; }
+  #mapTitle { font-size: 24px; }
+  #mapHint { font-size: 15px; }
+}
 #mapActions { display: flex; gap: 8px; }
 #mapExit, #mapReset { font-size: 11px; color: var(--bone); background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 4px 12px; cursor: pointer; }
 
@@ -264,10 +273,11 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
 #dialogue.stroke { pointer-events: none; }
 #dialogue.stroke #dlgCtrl { pointer-events: auto; }
 #dialogue::before { content: ''; position: absolute; inset: 0; background: rgba(10,8,6,.35); pointer-events: none; }
-.dlgPort { position: absolute; bottom: 96px; left: 4%; width: min(300px, 40%); height: 56%;
+.dlgPort { position: absolute; bottom: 84px; left: 3%; width: clamp(210px, 44vw, 480px); height: 66%;
   background-size: contain; background-position: bottom left; background-repeat: no-repeat;
   display: none; pointer-events: none; filter: drop-shadow(0 4px 14px rgba(0,0,0,.6)); }
-.dlgPort.right { left: auto; right: 4%; background-position: bottom right; transform: scaleX(-1); }
+.dlgPort.right { left: auto; right: 3%; background-position: bottom right; transform: scaleX(-1); }
+@media (min-width: 900px) { .dlgPort { width: clamp(360px, 33vw, 580px); height: 84%; bottom: 92px; } }
 .dlgPort.on { display: block; }
 .dlgPort.silhouette { filter: brightness(0.04) contrast(1.2) drop-shadow(0 0 16px rgba(156,47,38,.5)); }
 #dlgBox { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(720px, 92%);
@@ -281,8 +291,21 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
   border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; pointer-events: auto; }
 .dlgChoice:hover { border-color: var(--gold); color: var(--gold); }
 .dlgChoice small { display: block; font-size: 11px; opacity: .6; margin-top: 2px; }
-#dlgTapHint { position: absolute; right: 12px; bottom: 6px; font-size: 10px; color: var(--gold); opacity: .55; }
+#dlgTapHint { position: absolute; right: 14px; bottom: 10px; font-size: 15px; font-weight: 700; color: var(--gold);
+  background: rgba(201,168,106,.14); border: 1px solid var(--gold); border-radius: 9px; padding: 7px 16px;
+  animation: tapHintPulse 1.4s ease-in-out infinite; }
+@keyframes tapHintPulse { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
 #dialogue.stroke #dlgTapHint, #dialogue.choosing #dlgTapHint { display: none; }
+/* 첫 획 비트 가이드: 그을 위치를 점선 + 흐르는 점으로 시범 */
+#strokeGuide { position: absolute; top: 40%; left: 50%; transform: translate(-50%,-50%); z-index: 1;
+  display: none; flex-direction: column; align-items: center; gap: 12px; pointer-events: none; }
+#dialogue.stroke #strokeGuide { display: flex; }
+.sgText { font-size: clamp(15px, 2.4vw, 20px); font-weight: 800; color: var(--gold); text-shadow: 0 2px 8px #000; letter-spacing: 1px; }
+.sgLine { position: relative; width: min(64vw, 540px); height: 8px; border-radius: 4px;
+  background: repeating-linear-gradient(90deg, var(--gold) 0 16px, transparent 16px 30px); opacity: .8; }
+.sgDot { position: absolute; top: 50%; left: 0; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%;
+  background: var(--gold); box-shadow: 0 0 20px 4px rgba(201,168,106,.85); animation: sgSweep 1.5s ease-in-out infinite; }
+@keyframes sgSweep { 0% { left: 0; } 100% { left: 100%; } }
 #dlgCtrl { position: absolute; top: 10px; right: 12px; display: flex; gap: 6px; pointer-events: auto; }
 #dlgCtrl button { font-size: 11px; color: var(--bone); background: rgba(18,15,12,.85);
   border: 1px solid var(--line); border-radius: 7px; padding: 4px 10px; cursor: pointer; }
