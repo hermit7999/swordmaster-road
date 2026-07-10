@@ -9,5 +9,56 @@
       { "name": "내려베기", "dir": "↓", "counter": "v_up",   "counterName": "올려베기",       "damage": 12 },
       { "name": "돌진",   "dir": "↑", "counter": "v_down", "counterName": "내려찍기",       "damage": 15 }
     ]
+  },
+  "wolf": {
+    "name": "들늑대",
+    "hp": 66,
+    "image": "enemy_wolf",
+    "attacks": [
+      { "name": "물어뜯기", "dir": "→", "counter": "h_rl",   "counterName": "횡베기(우→좌)", "damage": 11 },
+      { "name": "도약",     "dir": "↑", "counter": "v_down", "counterName": "내려찍기",       "damage": 14 }
+    ]
+  },
+  "insect": {
+    "name": "독충 무리",
+    "hp": 54,
+    "image": "enemy_insect",
+    "attacks": [
+      { "name": "독침 쇄도", "dir": "←", "counter": "h_lr", "counterName": "횡베기(좌→우)", "damage": 10 },
+      { "name": "낮게 파고듦", "dir": "↓", "counter": "v_up", "counterName": "올려베기",     "damage": 10 }
+    ]
+  },
+  "bandit": {
+    "name": "떠돌이 산적",
+    "hp": 88,
+    "image": "enemy_bandit",
+    "attacks": [
+      { "name": "몽둥이 내려침", "dir": "↓", "counter": "v_up",   "counterName": "올려베기",       "damage": 13 },
+      { "name": "발길질",       "dir": "→", "counter": "h_rl",   "counterName": "횡베기(우→좌)", "damage": 11 },
+      { "name": "달려듦",       "dir": "↑", "counter": "v_down", "counterName": "내려찍기",       "damage": 14 }
+    ]
+  },
+  "swordsman": {
+    "name": "낭인 검객",
+    "hp": 104,
+    "image": "enemy_swordsman",
+    "attacks": [
+      { "name": "발도(拔刀)", "dir": "→", "counter": "h_rl",   "counterName": "횡베기(우→좌)", "damage": 13 },
+      { "name": "역수베기",   "dir": "←", "counter": "h_lr",   "counterName": "횡베기(좌→우)", "damage": 13 },
+      { "name": "올려치기",   "dir": "↑", "counter": "v_down", "counterName": "내려찍기",       "damage": 15 },
+      { "name": "내려베기",   "dir": "↓", "counter": "v_up",   "counterName": "올려베기",       "damage": 15 }
+    ]
+  },
+  "ilseomgwi": {
+    "name": "일섬귀(一閃鬼)",
+    "hp": 128,
+    "image": "boss_stage1",
+    "signature": "v_up",
+    "signatureWeight": 0.62,
+    "attacks": [
+      { "name": "일섬(一閃) 내려긋기", "dir": "↓", "counter": "v_up",   "counterName": "올려베기",       "damage": 20, "signature": true },
+      { "name": "허초 횡참",           "dir": "→", "counter": "h_rl",   "counterName": "횡베기(우→좌)", "damage": 12 },
+      { "name": "허초 돌진",           "dir": "↑", "counter": "v_down", "counterName": "내려찍기",       "damage": 12 }
+    ]
   }
 }

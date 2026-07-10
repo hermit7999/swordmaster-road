@@ -345,3 +345,12 @@ OI-12(원무 커맨드 난이도)는 원무가 M1 범위라 M0 DoD 아님(보류
   · 버그 수정(회귀): loadGame이 setStyle→buildPad를 호출하는데 PAD_LEFT/RIGHT const가 loadGame 호출부(구 798행) 뒤라 TDZ ReferenceError→try/catch에 삼켜짐→prologueDone 등 복원 누락. loadGame() 호출을 부트 블록(상수·buildPad 초기화 이후)으로 이동해 해결. (골드·유파·seen 복원도 함께 정상화)
   · 검증(브라우저 실증): 프롤로그 전 대사·관대 첫 획·유파 선택(좌수)·2회차 락 대사→지도 진입, styleId=saken·prologueDone 저장 / 노드 대화(무명·약옹) 선행 후 씬 / 재방문 스킵 / 귀환 시 프롤로그 생략·풀 세이브 복원(88냥·청강검) / 개발 유파토글만 존재. tsc 무경고·vitest 111/111·build OK.
   · 미완: 대화 초상 3종(주인공·스승·최종보스)은 배선 완료, 정예/일섬귀는 전용 초상 없어 이름만 표시. 자동 진행 속도는 T2-07 설정과 연동 예정.
+
+- 2026-07-10 [Claude] T2-06 적 확장 5종 + 보스(일섬귀) 특정 획 달인 기믹
+  · enemies.json 확장: 고블린척후·들늑대·독충무리·떠돌이산적·낭인검객(5종) + 보스 일섬귀. 대기 아트 5종(wolf/insect/bandit/swordsman/boss_stage1) 연결.
+  · 노드별 적 배선: stage1 노드에 enemy 필드 — b1=goblin(조우)·b2=swordsman(정예)·boss=ilseomgwi(결전). enterCombat(노드.enemy, kind).
+  · 보스 달인 기믹(FR-CBT-011): 일섬귀 signature=v_up(올려베기 요구), signatureWeight 0.62로 "일섬 내려긋기"를 가중 출제. 시그니처 응수 창 = 기본창 × (플레이어 mastery[v_up] ≥ 임계 ? easyScale 1.3 : hardScale 0.68). balance.combat.masteryEase.
+  · 텔레그래프 힌트: 숙련 시 "간파(看破)! 일섬의 궤가 보인다"(창 넓음), 미숙 시 "일섬 — 눈 깜짝할 새"(창 좁음).
+  · pickAttack()로 조우/정예/결전 공통 출제 + 시그니처 창 계산 통합.
+  · 검증(브라우저 실증): 보스=일섬귀(boss_stage1), 시그니처 미숙 창 1496ms+"눈 깜짝할 새" / 숙련(v_up=20) 창 2860ms+"간파" — 숙련 여부가 난이도로 체감(완료 기준). b2=낭인검객(enemy_swordsman) 라우팅 확인. tsc 무경고·vitest 111/111·build OK.
+  · 미완: 정예/일섬귀 전용 대사 초상 없음(이름만). 절대 HP/데미지 밸런스·시그니처 임계는 T2-08 튜닝.

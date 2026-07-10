@@ -324,7 +324,31 @@ function playCue(dir: string) {
 }
 // T2-03: 전투 3무게 — 조우(encounter, 실시간 1타)·정예(elite, 간소 합)·결전(boss, 전체 FSM)
 let combatKind: 'encounter' | 'elite' | 'boss' = 'boss';
-let cbRespondMs = 2200;
+let cbRespondMs = 2200, cbAttackWindow = 2200, cbSignatureNow = false;
+// T2-06: 다음 공격 선택. 보스는 시그니처(달인 획)를 가중 출제하고, 그 응수 창은
+// 플레이어의 해당 카운터 숙련도에 따라 늘/줄어 난이도가 체감된다(FR-CBT-011).
+function pickAttack() {
+  const e = cbEnemy;
+  if (e.signature && e.signatureWeight && Math.random() < e.signatureWeight) {
+    cbAttack = e.attacks.find(a => a.signature) ?? e.attacks[0];
+  } else {
+    const pool = e.signature ? e.attacks.filter(a => !a.signature) : e.attacks;
+    const use = pool.length ? pool : e.attacks;
+    cbAttack = use[Math.floor(Math.random() * use.length)];
+  }
+  cbAttackWindow = cbRespondMs; cbSignatureNow = false;
+  if (cbAttack.signature && e.signature) {
+    cbSignatureNow = true;
+    const me = CB().masteryEase;
+    const mastered = (mastery[e.signature] || 0) >= me.threshold;
+    cbAttackWindow = Math.round(cbRespondMs * (mastered ? me.easyScale : me.hardScale));
+  }
+}
+function signatureHint(): string {
+  if (!cbSignatureNow || !cbEnemy.signature) return '';
+  return (mastery[cbEnemy.signature] || 0) >= CB().masteryEase.threshold
+    ? ' · 간파(看破)! 일섬의 궤가 보인다' : ' · 일섬(一閃) — 눈 깜짝할 새';
+}
 function enterCombat(enemyId = 'goblin', kind: 'encounter' | 'elite' | 'boss' = 'boss') {
   combatKind = kind;
   const k = CB().kinds[kind] ?? CB().kinds.boss;
@@ -348,10 +372,10 @@ function enterCombat(enemyId = 'goblin', kind: 'encounter' | 'elite' | 'boss' = 
 }
 // 조우전: 실시간 1타. 예고 후 즉시 응수 창(觀察 없음). 정타=섬광 일격, 빗나감=스침(저스테이크 돌파).
 function cbEncounter() {
-  cbAttack = cbEnemy.attacks[Math.floor(Math.random() * cbEnemy.attacks.length)];
+  pickAttack(); const a = cbAttack!;
   cbTxt('#cbPhase', '일섬(一閃) — 지금!');
-  cbTxt('#cbTele', `적 급습! ${cbAttack.name} ${cbAttack.dir} — 섬광 응수: ${cbAttack.counterName}`);
-  playCue(cbAttack.dir);
+  cbTxt('#cbTele', `적 급습! ${a.name} ${a.dir} — 섬광 응수: ${a.counterName}`);
+  playCue(a.dir);
   awaitingParry = true;
   if (soundOn) playTick();
   const win = CB().kinds.encounter.windowMs ?? cbRespondMs;
@@ -381,10 +405,10 @@ function cbNextHap() {
   cbObserve();
 }
 function cbObserve() {
-  cbAttack = cbEnemy.attacks[Math.floor(Math.random() * cbEnemy.attacks.length)];
+  pickAttack(); const a = cbAttack!;
   cbTxt('#cbPhase', '관찰(觀察)');
-  cbTxt('#cbTele', `적: ${cbAttack.name} ${cbAttack.dir} — 응수: ${cbAttack.counterName}`);
-  playCue(cbAttack.dir);
+  cbTxt('#cbTele', `적: ${a.name} ${a.dir} — 응수: ${a.counterName}${signatureHint()}`);
+  playCue(a.dir);
   cbCanUseItem = true; renderCombatItems();   // 관찰 페이즈에만 아이템 사용 가능
   cbTimer = setTimeout(cbRespond, CB().observeMs) as unknown as number;
 }
@@ -393,7 +417,7 @@ function cbRespond() {
   awaitingParry = true; cbCanUseItem = false; renderCombatItems();
   if (soundOn) playTick();  // "지금" 신호
   const bonus = cbRespondBonus; cbRespondBonus = 0;   // 안법부적: 이번 응수 창만 연장
-  cbTimer = setTimeout(() => combatOnParry(null), cbRespondMs + bonus) as unknown as number;
+  cbTimer = setTimeout(() => combatOnParry(null), cbAttackWindow + bonus) as unknown as number;   // 시그니처면 숙련도로 가감
 }
 function combatOnParry(ev: StrokeEvent | null) {
   if (!awaitingParry) return;
@@ -644,7 +668,7 @@ function runNodeScene(id: string) {
       enterMap();
     };
     const kind = (n.battleKind === 'encounter' || n.battleKind === 'elite') ? n.battleKind : 'boss';
-    exitMap(); enterCombat('goblin', kind);   // T2-03: 조우/정예/결전 무게 구분
+    exitMap(); enterCombat(ENEMIES[n.enemy!] ? n.enemy! : 'goblin', kind);   // T2-06: 노드별 적
     return;
   }
   if (n.type === 'training') {

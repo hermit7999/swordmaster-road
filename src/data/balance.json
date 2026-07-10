@@ -30,7 +30,8 @@
       "encounter": { "hpMul": 1.0, "respondMs": 2000, "windowMs": 2000 },
       "elite": { "hpMul": 0.6, "respondMs": 2700 },
       "boss": { "hpMul": 1.0, "respondMs": 2200 }
-    }
+    },
+    "masteryEase": { "threshold": 12, "easyScale": 1.3, "hardScale": 0.68 }
   },
   "progression": {
     "hpPerLevel": 10, "powerPerLevel": 2,
