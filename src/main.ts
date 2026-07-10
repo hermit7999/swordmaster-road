@@ -308,13 +308,13 @@ function enterCombat(enemyId = 'goblin') {
   cbEnemy = ENEMIES[enemyId];
   cbEnemyHpMax = cbEnemy.hp; cbEnemyHp = cbEnemy.hp;
   cbPlayerHp = CB().playerHp; cbMana = CB().startMana;
-  combatActive = true; awaitingParry = false;
+  combatActive = true; awaitingParry = false; combatResult = 'quit';   // 중도이탈 기본
   $('#combat').classList.add('on'); $('#hint').style.display = 'none'; $('#btnCombat').classList.add('active');
   cbTxt('#cbEnemyName', cbEnemy.name); cbBars();
   cbTxt('#cbLog', '결전 시작 — 적의 예고를 보고 응수하라 (소리로도 방향 인지 가능)');
   cbTimer = setTimeout(cbObserve, 700) as unknown as number;
 }
-let combatWon = false;
+let combatWon = false, combatResult: 'win' | 'lose' | 'quit' = 'quit';
 function exitCombat() {
   combatActive = false; awaitingParry = false; clearTimeout(cbTimer);
   $('#combat').classList.remove('on'); $('#btnCombat').classList.remove('active');
@@ -358,7 +358,7 @@ function combatOnParry(ev: StrokeEvent | null) {
   cbTimer = setTimeout(cbNextHap, 950) as unknown as number;
 }
 function cbEnd(win: boolean) {
-  combatWon = win;
+  combatWon = win; combatResult = win ? 'win' : 'lose';
   cbTxt('#cbPhase', win ? '승리(勝)' : '패배(敗)');
   cbTxt('#cbLog', win ? '적을 쓰러뜨렸다! 결전에서 살아남았다.' : '쓰러졌다… 체크포인트에서 다시.');
   awaitingParry = false;
@@ -432,6 +432,43 @@ const STAGE = STAGES.stage1;
 let mapCurrent = STAGE.start;
 const mapVisited = new Set<string>([STAGE.start]);
 const NODE_ICON: Record<string, string> = { battle: '⚔', training: '✎', event: '❈', shop: '₩', rest: '☾' };
+
+/* ---- T2-02 저장(localStorage): 노드 완료 이어하기 + 구역 체크포인트(패배 복귀) ---- */
+const SAVE_KEY = 'sm_save_v1', SAVE_VERSION = 1;
+let checkpoint: { current: string; visited: string[] } = { current: STAGE.start, visited: [STAGE.start] };
+let checkpointZone = STAGE.nodes[STAGE.start].zone;
+function saveGame() {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ version: SAVE_VERSION, stage: 'stage1', current: mapCurrent, visited: [...mapVisited], checkpoint, checkpointZone })); } catch (_) { /* noop */ }
+}
+function loadGame(): boolean {
+  try {
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if (s && s.version === SAVE_VERSION && s.stage === 'stage1' && STAGE.nodes[s.current]) {
+      mapCurrent = s.current; mapVisited.clear();
+      (s.visited || []).forEach((v: string) => { if (STAGE.nodes[v]) mapVisited.add(v); });
+      if (s.checkpoint && STAGE.nodes[s.checkpoint.current]) { checkpoint = s.checkpoint; checkpointZone = s.checkpointZone ?? STAGE.nodes[s.checkpoint.current].zone; }
+      return true;
+    }
+  } catch (_) { /* noop */ }
+  return false;
+}
+function resetGame() {
+  try { localStorage.removeItem(SAVE_KEY); } catch (_) { /* noop */ }
+  mapCurrent = STAGE.start; mapVisited.clear(); mapVisited.add(STAGE.start);
+  checkpoint = { current: STAGE.start, visited: [STAGE.start] }; checkpointZone = STAGE.nodes[STAGE.start].zone;
+  saveGame(); renderMap();
+}
+// 구역 진입 시 체크포인트 갱신(패배 복귀 지점). 노드 완료(진행) 시 자동저장.
+function advanceTo(id: string) {
+  mapVisited.add(id); mapCurrent = id;
+  const zone = STAGE.nodes[id].zone;
+  if (zone !== checkpointZone) { checkpointZone = zone; checkpoint = { current: id, visited: [...mapVisited] }; }
+  saveGame();
+}
+function restoreCheckpoint() {
+  mapCurrent = checkpoint.current; mapVisited.clear(); checkpoint.visited.forEach(v => mapVisited.add(v)); saveGame();
+}
+
 function enterMap() {
   mapActive = true; $('#map').classList.add('on'); $('#hint').style.display = 'none'; $('#btnMap').classList.add('active');
   $('#mapTitle').textContent = STAGE.name;
@@ -463,18 +500,34 @@ function selectNode(id: string) {
     // 간이 노드: 맵 유지, 메시지 후 완료(대화/상점은 T2-05/T2-04)
     const note = n.type === 'rest' ? '기력을 회복했다.' : (n.type === 'shop' ? '행상을 만났다 (상점은 T2-04).' : '사건이 벌어졌다 (대화는 T2-05).');
     $('#mapHint').textContent = `${NODE_ICON[n.type]} ${n.label} — ${note}`;
-    mapVisited.add(id); mapCurrent = id;
+    advanceTo(id);                       // 진행 + 자동저장
     setTimeout(renderMap, 850);
     return;
   }
-  // 씬 노드(전투/수련): 씬 진입 → 종료 시 afterScene으로 맵 복귀
-  afterScene = (success) => { if (success) { mapVisited.add(id); mapCurrent = id; } enterMap(); };
-  exitMap();
-  if (n.type === 'battle') enterCombat('goblin');   // 조우/정예/보스 구분은 T2-03/T2-06
-  else if (n.type === 'training') enterTraining();
+  if (n.type === 'battle') {
+    // 전투: 승리=진행, 패배=구역 시작 복귀(체크포인트), 중도이탈=현상 유지.
+    afterScene = () => {
+      if (combatResult === 'win') advanceTo(id);
+      else if (combatResult === 'lose') restoreCheckpoint();
+      enterMap();
+    };
+    exitMap(); enterCombat('goblin');    // 조우/정예/보스 구분은 T2-03/T2-06
+    return;
+  }
+  if (n.type === 'training') {
+    afterScene = (success) => { if (success) advanceTo(id); enterMap(); };
+    exitMap(); enterTraining();
+  }
 }
 $('#btnMap').addEventListener('click', () => { mapActive ? exitMap() : enterMap(); });
 $('#mapExit').addEventListener('click', exitMap);
+let resetArm = false, resetTimer: number | undefined;
+$('#mapReset').addEventListener('click', () => {
+  const b = $('#mapReset');
+  if (!resetArm) { resetArm = true; b.textContent = '정말? 다시 탭'; clearTimeout(resetTimer); resetTimer = setTimeout(() => { resetArm = false; b.textContent = '처음부터'; }, 2500) as unknown as number; return; }
+  resetArm = false; clearTimeout(resetTimer); b.textContent = '처음부터'; resetGame();
+});
+loadGame();   // T2-02: 부팅 시 이어하기 로드(맵 열면 저장 진행 반영)
 
 /* ---- 검로(劍路) 입력: Pointer Events. T0-02 ---- */
 let drawing = false, points: Pt[] = [], t0 = 0, gRect: DOMRect | null = null;
