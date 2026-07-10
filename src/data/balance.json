@@ -5,6 +5,16 @@
   "minLenRatio": 0.12,
   "rejectRatio": 0.035,
   "classifyThreshold": 0.34,
+  "classifyTieEps": 0.02,
+  "shape": {
+    "circleMinSweepDeg": 200,
+    "circleMaxCV": 0.35,
+    "circleMaxClosure": 0.6,
+    "radiusCVZero": 0.5,
+    "closureZero": 0.5,
+    "sweepFullDeg": 330,
+    "circleWeights": { "radius": 0.5, "sweep": 0.3, "closure": 0.2 }
+  },
   "comboWindow": 1500,
   "weights": { "direction": 0.40, "straight": 0.30, "speed": 0.15, "completion": 0.15 },
   "simulMs": 70,

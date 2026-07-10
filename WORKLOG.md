@@ -5,6 +5,17 @@
 
 ---
 
+- 2026-07-10 [Claude/Opus] **T1-02 획 8종 완성(검로) + 형태/lenBand 판정**. 설계 담당 확정분대로 구현.
+  · shapeType(line/circle) 분기: line=직선도 (현/경로)² 유지. circle=원형도[반지름CV 50%+각도스윕(330°만점) 30%+폐합 20%],
+    방향 40%는 회전방향 일치(우수=시계, 원무 템플릿 부호 자동)+단조성 — 반시계=0. 원 게이트=스윕≥200°+CV≤0.35+폐합≤0.6(호/스파이럴 배제).
+  · lenBand(캔버스대각 대비 길이비) 동률 판별: 찌르기[0.035,0.16] vs 횡베기[0.16,1.0]. 찌르기 speedMs 60~300·minLenRatio 0.05 오버라이드.
+    오버라이드 일반화(speedMs/minLenRatio/lenBand, 미지정 시 balance 전역) — 전부 strokes.json, 코드 하드코딩 없음. 사전거부 바닥=템플릿 최소 minLenRatio.
+  · 추가 5획: 횡베기(우→좌) h_rl / 사선↙ diag_dl / 올려베기 v_up / 찌르기 thrust / 원무 wonmu(24점 시계 원). 원무 command 초안 →↓←↑(T1-03 확정).
+  · **오분류율(합성 N=400/획, node vitest)**: 8획 자기분류 100%(찌르기 99.5%). **찌르기→횡베기 0.5% / 횡베기→찌르기 0.0% / 원무↔사선(↘↙) 양방향 0.0%.**
+  · 발견: 8방향+원 커버리지에서 "획 불명"은 드문 폴백(45°만 벗어난 ↖/↗는 인접 획 스냅, 곡선은 원/최근접 흡수). 트레이드오프: 경계 근처 짧은 횡베기가 찌르기로 갈 수 있으나 실측 0%.
+  · 검증: vitest 42종 통과(회귀 29 갱신+T1-02 신규+혼동행렬), 빌드/타입 OK, 브라우저 자가진단 28/28, 실기 원무 그레이트 93. 라이브 배포.
+  · **T1-03 자동진행 안 함** — 경계값(lenBand/circleMinSweep 등) 조정 필요 시 운영자 판단 대기.
+
 - 2026-07-10 [Claude/Opus] **T1-01 프로젝트 전환 + 엔진 분리**. Vite + TS + (Phaser dep) 셋업.
   · 순수부를 `src/engine/*.ts`로 이식(types/geometry/judge/command/rhythm/combo/data + index 배럴), DOM 계층과 분리.
   · 데이터 JSON 외부화: `src/data/{balance,strokes,techniques,styles}.json` → `engine/data.ts`에서 로드.

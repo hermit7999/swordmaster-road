@@ -321,7 +321,11 @@ function runSelfTest() {
   let r;
   r = judgeStroke(line([100, 225], [700, 225], 40, 300), META); add('반듯 횡베기 = 그레이트+', !r.rejected && r.strokeId === 'h_lr' && r.accuracy! >= 85, `${r.grade} ${r.accuracy}`);
   r = judgeStroke(line([100, 225], [700, 225], 60, 300, 80), META); add('흔들림 = 배드', !r.rejected && r.accuracy! >= 50 && r.accuracy! <= 69, `${r.grade} ${r.accuracy}`);
-  r = judgeStroke(line([700, 225], [100, 225], 40, 300), META); add('역방향 = 획 불명', r.rejected && r.reason === 'unknown', r.reason);
+  r = judgeStroke(line([700, 225], [100, 225], 40, 300), META); add('우→좌 = 횡베기(우→좌)', !r.rejected && r.strokeId === 'h_rl', r.strokeId);
+  r = judgeStroke(line([650, 60], [150, 400], 40, 320), META); add('사선↙ = diag_dl', !r.rejected && r.strokeId === 'diag_dl', r.strokeId);
+  r = judgeStroke(line([400, 420], [400, 40], 40, 320), META); add('올려베기 = v_up', !r.rejected && r.strokeId === 'v_up', r.strokeId);
+  r = judgeStroke(line([400, 225], [520, 225], 20, 150), META); add('찌르기(짧고 빠름) = thrust', !r.rejected && r.strokeId === 'thrust', r.strokeId);
+  { const cir: {x:number;y:number;t:number}[] = []; for (let i = 0; i < 44; i++) { const u = i / 43, th = u * 2 * Math.PI; cir.push({ x: 400 + 170 * Math.sin(th), y: 225 - 170 * Math.cos(th), t: 1000 * u }); } const x = judgeStroke(cir, META); add('원무(시계) = wonmu 그레이트+', !x.rejected && x.strokeId === 'wonmu' && (x.accuracy || 0) >= 85, `${x.strokeId} ${x.accuracy}`); }
   r = judgeStroke([{ x: 400, y: 225, t: 0 }, { x: 402, y: 226, t: 10 }], META); add('탭 = 거부', r.rejected && r.reason === 'tap', r.reason);
   r = judgeStroke(line([340, 225], [540, 225], 30, 220), META); add('작은 획 = 비율 인정', !r.rejected && r.strokeId === 'h_lr', `${r.grade} ${r.accuracy}`);
   r = judgeStroke(line([150, 60], [650, 400], 40, 320), META); add('사선 = diag_dr', !r.rejected && r.strokeId === 'diag_dr', String(r.accuracy));

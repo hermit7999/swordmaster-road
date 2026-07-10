@@ -12,6 +12,16 @@ export interface Balance {
   minLenRatio: number;
   rejectRatio: number;
   classifyThreshold: number;
+  classifyTieEps: number;
+  shape: {
+    circleMinSweepDeg: number;
+    circleMaxCV: number;
+    circleMaxClosure: number;
+    radiusCVZero: number;
+    closureZero: number;
+    sweepFullDeg: number;
+    circleWeights: { radius: number; sweep: number; closure: number };
+  };
   comboWindow: number;
   weights: { direction: number; straight: number; speed: number; completion: number };
   simulMs: number;
