@@ -742,6 +742,13 @@ if (typeof document !== 'undefined') (function () {
     add('리듬 오차350 = 미스', judgeRhythm([{ dir: 'L', t: 0 }, { dir: 'R', t: 50 }], 'h_lr').grade === 'miss');
     add('리듬 동시사선 오차30 = 퍼펙트', judgeRhythm([{ dir: 'D', t: 0 }, { dir: 'R', t: 30 }], 'diag_dr').grade === 'perfect');
     add('리듬 패드↘ 단일 = 퍼펙트·보너스無', (() => { const x = judgeRhythm([{ dir: 'DR', t: 0 }], 'diag_dr'); return x.grade === 'perfect' && !x.powerBonus; })());
+    // T0-10 좌수 미러: 판정 품질 동등성(원본 vs 미러 x)
+    const mir = (pts) => pts.map(p => ({ x: META.w - p.x, y: p.y, t: p.t }));
+    const parity = (pts, id) => { const u = judgeStroke(pts, META, STYLES.uraken), s = judgeStroke(mir(pts), META, STYLES.saken); return !u.rejected && !s.rejected && u.strokeId === id && s.strokeId === id && Math.abs(u.accuracy - s.accuracy) <= 1; };
+    add('좌수 품질동등: 횡베기 반듯', parity(line([100, 225], [700, 225], 40, 300), 'h_lr'));
+    add('좌수 품질동등: 횡베기 흔들림', parity(line([100, 225], [700, 225], 60, 300, 60), 'h_lr'));
+    add('좌수 품질동등: 내려찍기', parity(line([400, 40], [400, 420], 40, 320), 'v_down'));
+    add('좌수 ↑↓ 클러스터=좌측', STYLES.saken.updownCluster === 'left' && STYLES.uraken.updownCluster === 'right');
     const passed = T.filter(t => t.ok).length;
     $('#diag').innerHTML = `<h4>자가진단 ${passed}/${T.length} 통과</h4>` +
       T.map(t => `<div class="${t.ok ? 'pass' : 'fail'}">${t.ok ? '✓' : '✗'} ${t.name}${t.extra != null ? ' · ' + t.extra : ''}</div>`).join('');
