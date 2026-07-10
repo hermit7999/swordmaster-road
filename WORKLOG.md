@@ -5,6 +5,14 @@
 
 ---
 
+- 2026-07-10 [Claude/Opus] **T1-01 프로젝트 전환 + 엔진 분리**. Vite + TS + (Phaser dep) 셋업.
+  · 순수부를 `src/engine/*.ts`로 이식(types/geometry/judge/command/rhythm/combo/data + index 배럴), DOM 계층과 분리.
+  · 데이터 JSON 외부화: `src/data/{balance,strokes,techniques,styles}.json` → `engine/data.ts`에서 로드.
+  · **M0 회귀 29종을 vitest로 이관**(`src/engine/engine.test.ts`) → `npm test` 통과. tsc 타입체크 통과, `npm run build` OK(JS 18KB).
+  · 게임 DOM 계층을 `src/main.ts`(TS, 엔진 임포트) + `src/style.css` + Vite `index.html`로 포팅. 빌드 번들에서 자가진단 24/24, 혼합입력 연풍참(평균100·위력+20%) 실증.
+  · **Pages 파이프라인 전환**: `.github/workflows/deploy.yml`(npm ci→build→dist upload→deploy-pages), Pages 소스 branch/root → **GitHub Actions(build_type=workflow)**. Phaser는 의존성만 추가(씬은 T1-02+).
+  · 완료 기준 충족: 29 회귀 새 구조 통과 + Pages가 Vite 빌드로 동작. 미완/주의: Phaser 씬 미착수(다음), CI 첫 배포 확인 필요.
+
 - 2026-07-10 [Claude/Opus] **T1-00 문서 갱신(M1 첫 작업)**. repo `docs/` 신설·정착.
   · 발견: 이전 세션 언급 원본(설계서 v3.0/SRS v1.1/작업지시서 v1)이 이 PC·repo에 부재 → M0 검증 통과분을 단일 진실로 정식 문서 재정착.
   · 신설: `docs/설계서_v3.1.md`(방향=국소 일치도, 직선=(현/경로)², 커맨드 확정 640/즉시확정, occupancy 중재, 수치표 §2.4, 변경이력),

@@ -1,0 +1,5 @@
+{
+  "h_lr":    { "name": "횡베기(좌→우)", "path": [[0, 0.5], [1, 0.5]], "command": ["L", "R"], "raw": ["L", "R"], "rhythm": [0, 400] },
+  "diag_dr": { "name": "사선베기(↘)",   "path": [[0, 0], [1, 1]],     "command": ["DR"],     "raw": ["D", "R"], "rhythm": [0, 0] },
+  "v_down":  { "name": "내려찍기",        "path": [[0.5, 0], [0.5, 1]], "command": ["U", "D"], "raw": ["U", "D"], "rhythm": [0, 400] }
+}

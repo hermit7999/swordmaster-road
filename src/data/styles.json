@@ -1,0 +1,4 @@
+{
+  "uraken": { "name": "우수검류", "mirrorX": false, "updownCluster": "right" },
+  "saken":  { "name": "좌수검류", "mirrorX": true,  "updownCluster": "left" }
+}

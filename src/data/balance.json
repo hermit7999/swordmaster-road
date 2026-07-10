@@ -1,0 +1,15 @@
+{
+  "resample": 64,
+  "gradeCuts": { "bad": 50, "good": 70, "great": 85, "perfect": 95 },
+  "speedIdeal": { "min": 120, "max": 700 },
+  "minLenRatio": 0.12,
+  "rejectRatio": 0.035,
+  "classifyThreshold": 0.34,
+  "comboWindow": 1500,
+  "weights": { "direction": 0.40, "straight": 0.30, "speed": 0.15, "completion": 0.15 },
+  "simulMs": 70,
+  "commandResolveMs": 640,
+  "commandWindow": 1500,
+  "arbiterStaleMs": 2000,
+  "rhythm": { "beatMs": 400, "windows": { "perfect": 50, "great": 100, "good": 180, "bad": 280 } }
+}
