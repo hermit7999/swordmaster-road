@@ -97,6 +97,11 @@ function draw() {
     }
     overlayFade -= 0.02;
   }
+  if (trainingActive && trainGuide && trainGuide.opacity > 0) {   // 수련 시범 궤적(페이드)
+    ctx.setLineDash([8, 8]); ctx.lineWidth = 3;
+    ctx.strokeStyle = `rgba(201,168,106,${trainGuide.opacity})`;
+    strokePath(trainGuide.ideal); ctx.setLineDash([]);
+  }
   if (liveTrail && liveTrail.length > 1) {
     ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.strokeStyle = 'rgba(230,220,195,0.92)';
@@ -135,6 +140,7 @@ function emitStroke(ev: StrokeEvent, extra?: string) {
   if (ev.grade !== 'miss') mastery[ev.strokeId] = (mastery[ev.strokeId] || 0) + gradePoints(ev.grade);
   playGrade(ev.grade); haptic(ev.grade);
   updateHud(ev, extra);
+  if (trainingActive) { trainingCtl.feed(ev); return; }   // T1-06 수련 모드로 라우팅
   updateTech(tracker.feed(ev));
 }
 function gradePoints(g: Grade) { return ({ perfect: 5, great: 3, good: 2, bad: 1, miss: 0 } as Record<Grade, number>)[g] || 0; }
@@ -177,6 +183,70 @@ function updateTech(res: TechRes) {
     $('#manaLine').textContent = `✗ ${res.name} 발동 실패! 마나 −${res.manaPenalty} · 경직 ${res.stunMs}ms`;
     $('#manaLine').style.color = 'var(--blood)';
   }
+}
+
+/* ---- T1-06 수련(修練) 씬 (DOM). 시범 궤적→페이드→소거, 굿+ 3연속 통과, 스승 대사 ---- */
+const TRAIN_LIST = ['h_lr', 'diag_dr', 'v_down'];
+let trainingActive = false, trainIdx = 0, trainConsec = 0, trainBusy = false;
+let trainGuide: { ideal: Pt[]; opacity: number } | null = null;
+const GUIDE_OPACITY = [0.9, 0.45, 0.15];
+const MASTER = {
+  intro: '이 획을 눈에 새겨라. 시범을 따라 그어보아라.',
+  perfect: '훌륭하다. 검이 곧게 섰다.',
+  good: '됐다. 몸이 기억하기 시작했다.',
+  fail: '흐트러졌다. 다시, 처음부터.',
+  pass: '이제 이 획은 네 것이다.',
+  done: '기본기가 몸에 뱄구나. 다음 경지로 가자.',
+};
+function guideFor(strokeId: string): Pt[] {
+  const box = { x0: 0.22 * W, y0: 0.28 * H, w: 0.56 * W, h: 0.44 * H };
+  return resample(STROKE_TEMPLATES[strokeId].path.map(([x, y]) => ({ x: box.x0 + x * box.w, y: box.y0 + y * box.h })), 24);
+}
+function setMaster(text: string, cls = '') { const m = $('#trainMaster'); m.textContent = text; m.className = cls; }
+function updateTrainDots() { $('#trainDots').textContent = [0, 1, 2].map(i => i < trainConsec ? '●' : '○').join(' '); }
+function loadTrainTarget() {
+  const id = TRAIN_LIST[trainIdx];
+  trainConsec = 0;
+  trainGuide = { ideal: guideFor(id), opacity: GUIDE_OPACITY[0] };
+  $('#trainTarget').textContent = `[${trainIdx + 1}/${TRAIN_LIST.length}] ${STROKE_TEMPLATES[id].name} — 굿 이상 3연속`;
+  setMaster(MASTER.intro); updateTrainDots();
+}
+const trainingCtl = {
+  feed(ev: StrokeEvent) {
+    if (trainBusy) return;
+    const target = TRAIN_LIST[trainIdx];
+    const pass = ev.strokeId === target && (ev.grade === 'good' || ev.grade === 'great' || ev.grade === 'perfect');
+    if (pass) {
+      trainConsec++;
+      setMaster(ev.grade === 'perfect' ? MASTER.perfect : MASTER.good, ev.grade === 'perfect' ? 'perfect' : '');
+      if (trainConsec >= 3) {
+        setMaster(MASTER.pass, 'perfect'); updateTrainDots();
+        trainBusy = true; trainGuide = null; trainIdx++;
+        setTimeout(() => { trainBusy = false; if (trainIdx >= TRAIN_LIST.length) finishTraining(); else loadTrainTarget(); }, 1000);
+        return;
+      }
+      if (trainGuide) trainGuide.opacity = GUIDE_OPACITY[Math.min(trainConsec, 2)];   // 반복 시 페이드아웃
+    } else {
+      trainConsec = 0;
+      setMaster(MASTER.fail, 'miss');
+      trainGuide = { ideal: guideFor(target), opacity: GUIDE_OPACITY[0] };            // 미스 시 가이드 복원
+    }
+    updateTrainDots();
+  },
+};
+function enterTraining() {
+  trainingActive = true; trainIdx = 0; trainBusy = false;
+  $('#train').classList.add('on'); $('#hint').style.display = 'none'; $('#btnTrain').classList.add('active');
+  loadTrainTarget();
+}
+function exitTraining() {
+  trainingActive = false; trainGuide = null;
+  $('#train').classList.remove('on'); $('#btnTrain').classList.remove('active');
+}
+function finishTraining() {
+  setMaster(MASTER.done, 'perfect'); trainGuide = null; $('#trainTarget').textContent = '수련 완료';
+  $('#trainDots').textContent = '● ● ●';
+  setTimeout(exitTraining, 1800);
 }
 
 /* ---- 검로(劍路) 입력: Pointer Events. T0-02 ---- */
@@ -307,6 +377,8 @@ $('#btnMetro').addEventListener('click', e => {
   setMetro(!metroOn); const b = e.target as HTMLElement;
   b.classList.toggle('active', metroOn); b.textContent = '메트로놈 ' + (metroOn ? 'ON' : 'OFF');
 });
+$('#btnTrain').addEventListener('click', () => { trainingActive ? exitTraining() : enterTraining(); });
+$('#trainExit').addEventListener('click', exitTraining);
 $('#btnDiag').addEventListener('click', e => {
   const d = $('#diag'); const show = d.style.display !== 'block';
   d.style.display = show ? 'block' : 'none'; (e.target as HTMLElement).classList.toggle('active', show);

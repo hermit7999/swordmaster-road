@@ -69,6 +69,19 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
   border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px; cursor: pointer; }
 #ctrl button.active { color: var(--gold); border-color: var(--gold); }
 
+/* 수련(修練) 오버레이 */
+#train { position: absolute; top: 48px; left: 50%; transform: translateX(-50%); z-index: 22;
+  display: none; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  background: rgba(22,19,15,.86); border: 1px solid var(--line); border-radius: 12px; padding: 12px 20px; max-width: 80%; }
+#train.on { display: flex; }
+#trainMaster { font-size: 14px; color: var(--bone); min-height: 20px; }
+#trainMaster.perfect { color: var(--gold); } #trainMaster.miss { color: var(--blood); }
+#trainTarget { font-size: 18px; font-weight: 800; color: var(--gold); letter-spacing: 1px; }
+#trainDots { font-size: 20px; letter-spacing: 6px; color: var(--gold); }
+#trainHint { font-size: 11px; opacity: .55; }
+#trainExit { font-size: 11px; color: var(--bone); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 7px; padding: 4px 10px; cursor: pointer; pointer-events: auto; }
+
 /* 자가진단 패널 */
 #diag { position: absolute; left: 12px; bottom: 12px; z-index: 25; max-width: 46%;
   font-size: 10.5px; line-height: 1.5; color: var(--bone); background: rgba(22,19,15,.9);
