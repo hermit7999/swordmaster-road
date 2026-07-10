@@ -155,7 +155,11 @@ function emitStroke(ev: StrokeEvent, extra?: string) {
   if (ev.grade !== 'miss') mastery[ev.strokeId] = (mastery[ev.strokeId] || 0) + gradePoints(ev.grade);
   playGrade(ev.grade); haptic(ev.grade);
   updateHud(ev, extra);
-  if (combatActive) { if (awaitingParry) combatOnParry(ev); return; }  // T1-07 결전: 응수 창에서만 유효
+  if (combatActive) {   // T1-07 결전: 응수 창에서만 판정. 그 외엔 무시 대신 피드백(무반응/의도차단 구분). 버그4
+    if (awaitingParry) combatOnParry(ev);
+    else toast('관찰 중(觀察) — 응수(應手) 신호를 기다려라');
+    return;
+  }
   if (trialActive) { trialCtl.feed(ev); return; }         // T1-08 승급 시험으로 라우팅
   if (trainingActive) { trainingCtl.feed(ev); return; }   // T1-06 수련 모드로 라우팅
   updateTech(tracker.feed(ev));
@@ -487,6 +491,11 @@ function endStroke() {
   arbiter.release('gesture');
   const pts = points; liveTrail = null;
   const res = judgeStroke(pts, { w: W, h: H }, currentStyle);
+  if (pts.length >= 2) {   // [임시 진단 버그3] 순각도(net angle) 표시 — 검증 후 자가진단으로 이동
+    const a = pts[0], b = pts[pts.length - 1];
+    const ang = Math.round(Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI);
+    $('#angDiag').textContent = `[진단] 순각도 ${ang}° → ${res.rejected ? (res.reason ?? '?') : STROKE_TEMPLATES[res.strokeId!].name}`;
+  }
   if (res.rejected) { rejectHud(res.reason!); if (pts.length > 1) { lastOverlay = { user: resample(pts, 40), ideal: null, grade: 'miss' }; overlayFade = 1; } return; }
   lastOverlay = { user: resample(pts, 40), ideal: idealForDisplay(res.strokeId!, pts), grade: res.grade! };
   overlayFade = 1;

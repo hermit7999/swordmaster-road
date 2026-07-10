@@ -86,7 +86,8 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
 #ctrl button.active { color: var(--gold); border-color: var(--gold); }
 
 /* 수련(修練) 오버레이 */
-#train { position: absolute; top: 48px; left: 50%; transform: translateX(-50%); z-index: 22;
+/* 씬 패널은 pointer-events:none — 제스처가 패널을 통과해 캔버스에 도달(검로/검결 동시 활성). 내부 버튼만 auto. (버그4) */
+#train { position: absolute; top: 48px; left: 50%; transform: translateX(-50%); z-index: 22; pointer-events: none;
   display: none; flex-direction: column; align-items: center; gap: 6px; text-align: center;
   background: rgba(22,19,15,.86); border: 1px solid var(--line); border-radius: 12px; padding: 12px 20px; max-width: 80%; }
 #train.on { display: flex; }
@@ -99,7 +100,7 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
   border-radius: 7px; padding: 4px 10px; cursor: pointer; pointer-events: auto; }
 
 /* 결전(決戰) 전투 오버레이 */
-#combat { position: absolute; top: 44px; left: 50%; transform: translateX(-50%); z-index: 22;
+#combat { position: absolute; top: 44px; left: 50%; transform: translateX(-50%); z-index: 22; pointer-events: none;
   display: none; flex-direction: column; gap: 6px; width: min(440px, 84%);
   background: rgba(22,19,15,.9); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
 #combat.on { display: flex; }
@@ -113,10 +114,10 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
 #cbTele { font-size: 13px; text-align: center; color: var(--bone); min-height: 18px; }
 #cbLog { font-size: 12px; text-align: center; opacity: .8; min-height: 16px; }
 #cbExit { align-self: center; font-size: 11px; color: var(--bone); background: var(--panel); border: 1px solid var(--line);
-  border-radius: 7px; padding: 4px 10px; cursor: pointer; margin-top: 2px; }
+  border-radius: 7px; padding: 4px 10px; cursor: pointer; margin-top: 2px; pointer-events: auto; }
 
 /* 승급 시험(昇級) 오버레이 */
-#trial { position: absolute; top: 48px; left: 50%; transform: translateX(-50%); z-index: 22;
+#trial { position: absolute; top: 48px; left: 50%; transform: translateX(-50%); z-index: 22; pointer-events: none;
   display: none; flex-direction: column; align-items: center; gap: 8px; text-align: center;
   background: rgba(22,19,15,.9); border: 1px solid var(--line); border-radius: 12px; padding: 12px 20px; max-width: 82%; }
 #trial.on { display: flex; }
@@ -129,7 +130,7 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
 #trialMaster.perfect { color: var(--gold); } #trialMaster.miss { color: var(--blood); }
 #trialActions { display: flex; gap: 8px; }
 #trialActions button { font-size: 11px; color: var(--bone); background: var(--panel); border: 1px solid var(--line);
-  border-radius: 7px; padding: 4px 10px; cursor: pointer; }
+  border-radius: 7px; padding: 4px 10px; cursor: pointer; pointer-events: auto; }
 #trialRetry { display: none; }
 
 /* 노드 맵(T2-01) */
