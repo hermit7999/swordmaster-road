@@ -212,9 +212,17 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
 #shopExit { font-size: 11px; color: var(--bone); background: var(--panel); border: 1px solid var(--line);
   border-radius: 7px; padding: 4px 14px; cursor: pointer; }
 
+/* 대화가 열리면 상단 HUD·조작버튼·스테이지 오버레이를 완전히 가림(대화 위 겹침 방지). 씬 배경만 노출. */
+#app.dlg-open #hud, #app.dlg-open #ctrl, #app.dlg-open #comboBox,
+#app.dlg-open #pad, #app.dlg-open #hint, #app.dlg-open #cmdToast,
+#app.dlg-open #beatDot, #app.dlg-open #diag { visibility: hidden; }
+
 /* 대화 시스템 T2-05 — 초상+텍스트, 탭 진행/자동/스킵. 배경(#sceneBg)은 뒤에 유지. */
 #dialogue { position: absolute; inset: 0; z-index: 40; display: none; }
 #dialogue.on { display: block; }
+/* 관대 첫 획 비트: 컨테이너를 통째로 통과시켜 제스처가 캔버스에 닿게(스킵 버튼만 예외). */
+#dialogue.stroke { pointer-events: none; }
+#dialogue.stroke #dlgCtrl { pointer-events: auto; }
 #dialogue::before { content: ''; position: absolute; inset: 0; background: rgba(10,8,6,.35); pointer-events: none; }
 .dlgPort { position: absolute; bottom: 96px; left: 4%; width: min(300px, 40%); height: 56%;
   background-size: contain; background-position: bottom left; background-repeat: no-repeat;

@@ -711,7 +711,7 @@ function playDialogue(id: string, onDone: () => void) {
   const def = STORY[id];
   if (!def) { onDone(); return; }
   dlgActive = true; dlgDef = def; dlgLines = def.lines; dlgIdx = 0; dlgInReaction = false; dlgOnDone = onDone;
-  $('#dialogue').classList.add('on'); $('#hint').style.display = 'none';
+  $('#dialogue').classList.add('on'); $('#app').classList.add('dlg-open'); $('#hint').style.display = 'none';
   if (def.bg) setSceneBg(def.bg);
   dlgRender();
 }
@@ -775,7 +775,7 @@ function dlgSkip() {
 }
 function dlgFinish() {
   dlgActive = false; dlgAwaitStroke = false; clearTimeout(dlgAutoTimer);
-  $('#dialogue').classList.remove('on', 'stroke', 'choosing');
+  $('#dialogue').classList.remove('on', 'stroke', 'choosing'); $('#app').classList.remove('dlg-open');
   const cb = dlgOnDone; dlgOnDone = null; dlgDef = null;
   if (cb) cb();
 }

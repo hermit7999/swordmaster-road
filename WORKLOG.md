@@ -369,3 +369,12 @@ OI-12(원무 커맨드 난이도)는 원무가 M1 범위라 M0 DoD 아님(보류
   · 배선: 햅틱 게이트(hapticOn), 판정난이도=전투 응수창 배율(difficultyEase, balance.difficultyEase 관대 1.25), 대화속도=자동진행 배율(dlgSpeedMul), 가상키크기=CSS --pad-scale(balance.padScale). 상단 소리 버튼도 settings와 동기화.
   · 검증(브라우저 실증): 타이틀 표시(bg_title·탭게이트), 탭→메뉴, 이어하기 세이브無 비활성/有 활성, 새 게임→프롤로그, 이어하기→지도(e1 복귀), 설정 5종 선택·--pad-scale 1.22 적용·reload 후 영속, 피드백 토스트. tsc 무경고·vitest 111/111·build OK. 완료 기준(타이틀→새게임/이어하기 분기) 충족.
   · 미완: 판정난이도/대화속도 실효는 코드 배선 완료(전투 타이밍·자동대화)·수치는 T2-08 튜닝. 피드백 URL 미정(플레이스홀더).
+
+- 2026-07-10 [Claude] 폰 실기 피드백 5건 (초상 누끼·대화 입력버그·HUD겹침·주소창)
+  · 초상 누끼(#1,#2): 대화 초상 4종(master/hero/rival/merchant) 배경 제거 → 투명 WebP(rembg u2net, alpha). 다크 박스 사라지고 씬 배경이 뒤로 비침. 원본 raw PNG는 불변(불투명 보존).
+  · **환경 부작용 주의**: rembg 설치가 공용 Python numpy를 2.4.6로 올려 langchain/streamlit(ai_factory 서비스) 호환 깨짐 → 누끼 처리 후 numpy==1.26.4로 **복원 완료**. rembg/numba/scikit-image는 설치됨(미사용). (pillow 12.2·protobuf 7.35 경고는 이전부터 있던 것.)
+  · 대화 입력 버그(#3, 관대 첫 획 "아무것도 안먹혀"): #dialogue 컨테이너(z40, 전화면)가 pointer-events:auto라 획 비트에서도 제스처를 삼켜 캔버스 미도달. → `#dialogue.stroke { pointer-events:none }`(스킵 버튼만 auto). elementFromPoint(중앙)=ink 확인.
+  · HUD 겹침(#4): 대화 중 상단 HUD·조작버튼·콤보·패드가 투명 대화 위로 비침. → #app.dlg-open으로 #hud/#ctrl/#comboBox/#pad/#hint/#cmdToast/#beatDot/#diag visibility:hidden. 대화 종료 시 복원.
+  · 주소창(#5): PWA 매니페스트(display standalone·landscape) + apple-mobile-web-app 메타 + 아이콘(192/512/180, 타이틀아트 크롭). "홈 화면에 추가"로 실행 시 주소창 없이 전체화면. (일반 브라우저 탭에서는 주소창 표시가 정상 — 홈화면 추가 안내 필요.)
+  · 검증(브라우저 실증): 대화 중 HUD hidden, 획 비트 캔버스 도달(elementFromPoint=ink), 초상 alpha(모서리0·중앙254), 매니페스트 200·standalone. tsc 무경고·vitest 111/111·build OK.
+  · 미완: 초상 누끼는 rembg 처리본이라 convert_art.py 재실행 시 재생(별도 스크립트 scratchpad/nukki.py). 오버레이/밝기 확정값은 폰 튜닝 대기.
