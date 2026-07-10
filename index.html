@@ -146,7 +146,7 @@ const BALANCE = {
   simulMs: 70,                           // 동시키 인식 창(ms)
   commandResolveMs: 640,                 // 커맨드 버퍼 확정 대기(ms) — 늦은 2번째 비트(beatMs+배드창) 허용
   commandWindow: 1500,                   // 순차 입력 최대 간격(ms)
-  arbiterLockMs: 110,                    // 채널 중복 발행 방지(T0-06 임시)
+  arbiterStaleMs: 2000,                  // 점유 안전 해제(누락 방지 백스톱, T0-06)
   rhythm: { beatMs: 400, windows: { perfect: 50, great: 100, good: 180, bad: 280 } },  // 검결 리듬(T0-05)
 };
 // 획 3종 (우수검류 기준). path=이상 궤적, command=검결 커맨드 토큰.
@@ -492,12 +492,26 @@ if (typeof document !== 'undefined') (function () {
     return resample(path, 24).map(p => ({ x: b.minX + p.x * b.w, y: b.minY + p.y * b.h }));
   }
 
+  /* ---- T0-06 InputArbiter: 캔버스(검로)/패드·키보드(검결) 동시 활성.
+     행동을 먼저 시작한 채널이 그 행동이 끝날 때까지 점유하고, 끝나면 해제한다.
+     서로 겹치지 않는(순차) 행동은 채널을 섞어도 모두 발행된다 — 시간 기반 blanket
+     차단(구 arbiterLockMs)이 빠른 연속 검결의 HUD 갱신을 삼키던 문제를 대체. ---- */
+  const arbiter = (() => {
+    let occupant = null, sinceT = 0;      // 'gesture' | 'command' | null
+    return {
+      tryAcquire(ch) {
+        const now = performance.now();
+        if (occupant === null || occupant === ch) { occupant = ch; sinceT = now; return true; }
+        if (now - sinceT > BALANCE.arbiterStaleMs) { occupant = ch; sinceT = now; return true; } // 백스톱
+        return false;
+      },
+      release(ch) { if (occupant === ch) occupant = null; },
+      get() { return occupant; },
+    };
+  })();
+
   /* ---- 통일 판정 이벤트 발행 + 반응(소리/햅틱/HUD/콤보). 규칙 #4 규격 ---- */
-  let lastEmitAt = 0;
   function emitStroke(ev, extra) {
-    // T0-06(InputArbiter) 임시: 채널 간 근접 중복 발행 차단.
-    if (ev.timestamp - lastEmitAt < BALANCE.arbiterLockMs) return;
-    lastEmitAt = ev.timestamp;
     if (ev.grade !== 'miss') mastery[ev.strokeId] = (mastery[ev.strokeId] || 0) + gradePoints(ev.grade);
     playGrade(ev.grade); haptic(ev.grade);
     updateHud(ev, extra);
@@ -545,18 +559,22 @@ if (typeof document !== 'undefined') (function () {
   }
 
   /* ---- 검로(劍路) 입력: Pointer Events (터치=마우스 동일). T0-02 ---- */
-  let drawing = false, points = [], t0 = 0;
+  let drawing = false, points = [], t0 = 0, gRect = null;
+  const relX = e => e.clientX - gRect.left, relY = e => e.clientY - gRect.top;  // offsetX 대체(변환/DPR 안전)
   canvas.addEventListener('pointerdown', e => {
+    if (!arbiter.tryAcquire('gesture')) return;   // 검결이 행동 점유중이면 이 획은 검로가 잡지 않음
+    gRect = canvas.getBoundingClientRect();
     drawing = true; t0 = performance.now();
-    points = [{ x: e.offsetX, y: e.offsetY, t: 0 }];
-    liveTrail = points; canvas.setPointerCapture(e.pointerId);
+    points = [{ x: relX(e), y: relY(e), t: 0 }];
+    liveTrail = points; try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
   });
   canvas.addEventListener('pointermove', e => {
     if (!drawing) return;
-    points.push({ x: e.offsetX, y: e.offsetY, t: performance.now() - t0 });
+    points.push({ x: relX(e), y: relY(e), t: performance.now() - t0 });
   });
   function endStroke() {
     if (!drawing) return; drawing = false;
+    arbiter.release('gesture');            // 획(행동) 종료 → 점유 해제
     const pts = points; liveTrail = null;
     const res = judgeStroke(pts, { w: W, h: H }, currentStyle);
     if (res.rejected) { rejectHud(res.reason); flashReject(pts); return; }
@@ -583,6 +601,8 @@ if (typeof document !== 'undefined') (function () {
     const now = performance.now();
     // 순차 창 초과분은 버림(새 커맨드 시작)
     while (cmdBuf.length && now - cmdBuf[0].t > BALANCE.commandWindow) cmdBuf.shift();
+    // 새 커맨드의 첫 입력이면 채널 점유 시도(제스처가 그리는 중이면 무시).
+    if (cmdBuf.length === 0 && !arbiter.tryAcquire('command')) return;
     cmdBuf.push({ dir, t: now });
     flashKey(dir);
     clearTimeout(cmdTimer);
@@ -598,6 +618,7 @@ if (typeof document !== 'undefined') (function () {
     const seqLabel = inputs.map(i => DIR_GLYPH[i.dir] || i.dir).join('');
     const rec = recognizeCommand(inputs, BALANCE.simulMs, currentStyle);
     cmdBuf.length = 0;
+    arbiter.release('command');            // 커맨드(행동) 종료 → 점유 해제(인식 성공/실패 무관)
     if (!rec) { toast(`검결 불명 (${seqLabel})`); rejectHud('unknown'); return; }
     // T0-05 RhythmJudge: raw 버퍼(collapse 이전) 기준 타이밍 판정.
     const rj = judgeRhythm(inputs, rec.strokeId, currentStyle);

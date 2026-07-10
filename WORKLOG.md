@@ -5,6 +5,15 @@
 
 ---
 
+- 2026-07-10 [Claude/Opus] **T0-06 InputArbiter 구현**(캔버스/패드 동시 활성, 먼저 든 채널 점유).
+  · 시간 기반 blanket 차단(구 arbiterLockMs 110)을 **채널 점유(occupancy) 모델**로 교체:
+    행동 시작 채널이('gesture'|'command') 그 행동 종료까지 점유, 종료 시 해제. 백스톱 arbiterStaleMs=2000.
+    → 빠른 연속 검결의 2번째가 HUD 갱신을 삼키던 문제 해결(발행은 행동마다 1회, 겹칠 때만 후발 채널 무시).
+  · 제스처 좌표를 offsetX → clientX−rect 로 변경(변환/DPR 안전 + 합성 PointerEvent 테스트 가능).
+  · 검증: 자가진단 20/20, ①패드 ↘×2(50ms) 둘 다 발행(사선 숙련+10) ②혼합입력 연풍참(제스처 횡베기→검결 사선, 평균100·위력+20%)
+    ③커맨드 대기중 제스처 무시→해제 후 정상. JS 에러 없음.
+  · 미완/주의: 점유 중 후발 채널 입력은 '무시'(큐잉 아님) — 의도적. arbiterStaleMs는 안전 백스톱일 뿐 정상 경로 아님.
+
 - 2026-07-10 [Claude/Opus] **T0-05 RhythmJudge(검결 타이밍 판정) 구현 + GitHub Pages 배포**.
   · 배포: github.com/hermit7999/swordmaster-road 신규 생성, main/root Pages 활성화 →
     **라이브 https://hermit7999.github.io/swordmaster-road/** (build=built, HTTP 200 확인).
