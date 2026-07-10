@@ -5,6 +5,20 @@
 
 ---
 
+- 2026-07-10 [Claude/Opus] **T0-05 RhythmJudge(검결 타이밍 판정) 구현 + GitHub Pages 배포**.
+  · 배포: github.com/hermit7999/swordmaster-road 신규 생성, main/root Pages 활성화 →
+    **라이브 https://hermit7999.github.io/swordmaster-road/** (build=built, HTTP 200 확인).
+  · T0-05: 순수 judgeRhythm(rawInputs, strokeId, style) — 이상 비트 타임라인 대비 타이밍 오차.
+    퍼펙트±50/그레이트±100/굿±180/배드±280ms, 순서·개수 오류=미스. STROKE_TEMPLATES에 raw/rhythm(오프셋) 추가,
+    BALANCE.rhythm{beatMs:400}. 다입력(고난도) 정밀 성공 시 **위력+10%**(패드 단일 대각 press는 제외).
+  · **버그 수정(중요)**: 정박 간격(400ms) > 커맨드 확정대기(260ms)라 2번째 비트 전에 버퍼가 쪼개져
+    "정박 플레이 불가"였음. → **완전 일치 시 즉시 확정**(타이밍은 타임스탬프로 보존) + 확정대기 640ms 상향.
+  · 메트로놈(목검 비트) 추가: Web Audio 틱 + 비트 펄스 + 토글 버튼(beatMs 기준).
+  · resolveCommand가 임시점수 대신 judgeRhythm 실판정 사용. 검결 정확도 라벨의 "T0-05 대기" 문구 제거.
+  · 검증: node 회귀 24/24, 브라우저 자가진단 20/20, 실기 타이밍(정박400=퍼펙트+보너스 / 470=그레이트 /
+    150=배드 / 동시사선=퍼펙트+보너스) 실증. 메트로놈 토글·펄스 동작. JS 에러 없음.
+  · 미완/주의: T0-06(InputArbiter)는 근접중복 차단(arbiterLockMs 110) 수준 임시 — 빠른 연속 검결이 HUD갱신을 삼킬 수 있음(다음 과제).
+
 - 2026-07-10 [Claude/Opus] M0 베이스 재구성 + **T0-04 검결(劍訣) CommandCapture 구현**.
   · 이전 세션의 M0 index.html이 이 PC에 없어(디스크 미저장) 인수인계 문서 스펙대로 단일 index.html 충실 재구성:
     T0-01 판정데이터(획3종 h_lr/diag_dr/v_down + BALANCE), T0-02 Pointer 궤적수집,
