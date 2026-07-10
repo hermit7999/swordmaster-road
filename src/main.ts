@@ -1,7 +1,7 @@
 // DOM/게임 계층 (T1-01: 순수부는 src/engine에서 임포트). 판정 로직은 여기 없음.
 import './style.css';
 import {
-  BALANCE, STROKE_TEMPLATES, STYLES, ENEMIES, TRIALS,
+  BALANCE, STROKE_TEMPLATES, STYLES, ENEMIES, TRIALS, STAGES,
   judgeStroke, recognizeCommand, judgeRhythm, gradeOf, createTechniqueTracker,
   bbox, resample, otherStyle,
 } from './engine';
@@ -22,6 +22,14 @@ function resize() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 window.addEventListener('resize', resize);
+// 버그2 수정: 모바일 주소창 표시/숨김·회전·레이아웃 정착으로 캔버스 표시 크기가 바뀌면
+// window 'resize'가 안 오는 경우가 있어 백킹스토어가 고착 → 궤적이 어긋남. 표시 크기 변화를
+// 직접 관찰해 resize() 재동기화(판정 좌표는 원래 정확하므로 렌더링만 교정).
+if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => resize()).observe(canvas);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', resize);
+  window.visualViewport.addEventListener('scroll', resize);
+}
 
 /* ---- 오디오(T0-07): 등급별 검명 5종 ---- */
 let audio: AudioContext | null = null;
@@ -136,8 +144,14 @@ const arbiter = (() => {
   };
 })();
 
+/* ---- 씬 복귀 훅 (T2-01 노드맵): 씬을 맵에서 진입하면 종료 시 맵으로 복귀 ---- */
+let mapActive = false;
+let afterScene: ((success: boolean) => void) | null = null;
+function runAfterScene(success: boolean) { const cb = afterScene; afterScene = null; if (cb) cb(success); }
+
 /* ---- 통일 판정 이벤트 발행 + 반응. 규칙 #4 규격 ---- */
 function emitStroke(ev: StrokeEvent, extra?: string) {
+  if (mapActive) return;   // 맵 메뉴 중에는 획 입력 무시
   if (ev.grade !== 'miss') mastery[ev.strokeId] = (mastery[ev.strokeId] || 0) + gradePoints(ev.grade);
   playGrade(ev.grade); haptic(ev.grade);
   updateHud(ev, extra);
@@ -242,11 +256,14 @@ function enterTraining() {
   $('#train').classList.add('on'); $('#hint').style.display = 'none'; $('#btnTrain').classList.add('active');
   loadTrainTarget();
 }
+let trainDone = false;
 function exitTraining() {
   trainingActive = false; trainGuide = null;
   $('#train').classList.remove('on'); $('#btnTrain').classList.remove('active');
+  const s = trainDone; trainDone = false; runAfterScene(s);   // 맵 복귀(완주 여부 전달)
 }
 function finishTraining() {
+  trainDone = true;
   setMaster(MASTER.done, 'perfect'); trainGuide = null; $('#trainTarget').textContent = '수련 완료';
   $('#trainDots').textContent = '● ● ●';
   setTimeout(exitTraining, 1800);
@@ -289,9 +306,11 @@ function enterCombat(enemyId = 'goblin') {
   cbTxt('#cbLog', '결전 시작 — 적의 예고를 보고 응수하라 (소리로도 방향 인지 가능)');
   cbTimer = setTimeout(cbObserve, 700) as unknown as number;
 }
+let combatWon = false;
 function exitCombat() {
   combatActive = false; awaitingParry = false; clearTimeout(cbTimer);
   $('#combat').classList.remove('on'); $('#btnCombat').classList.remove('active');
+  const s = combatWon; combatWon = false; runAfterScene(s);   // 맵 복귀(승리 여부 전달)
 }
 function cbNextHap() {
   if (cbEnemyHp <= 0) return cbEnd(true);
@@ -331,6 +350,7 @@ function combatOnParry(ev: StrokeEvent | null) {
   cbTimer = setTimeout(cbNextHap, 950) as unknown as number;
 }
 function cbEnd(win: boolean) {
+  combatWon = win;
   cbTxt('#cbPhase', win ? '승리(勝)' : '패배(敗)');
   cbTxt('#cbLog', win ? '적을 쓰러뜨렸다! 결전에서 살아남았다.' : '쓰러졌다… 체크포인트에서 다시.');
   awaitingParry = false;
@@ -361,7 +381,8 @@ function enterTrial() {
   $('#trialTitle').textContent = `${t.name} 시험 — 4획 연속(획 간 ≤${t.intervalMs / 1000}초), 평균 ${t.avgPass}+ · 미스 즉시 중단`;
   setTrialMaster('시작하라. 첫 획부터, 끊김 없이.'); renderTrialSteps();
 }
-function exitTrial() { trialActive = false; clearTimeout(trialTimer); $('#trial').classList.remove('on'); $('#btnTrial').classList.remove('active'); }
+let trialPassed = false;
+function exitTrial() { trialActive = false; clearTimeout(trialTimer); $('#trial').classList.remove('on'); $('#btnTrial').classList.remove('active'); const s = trialPassed; trialPassed = false; runAfterScene(s); }
 function trialFailTimeout() { if (trialActive && !trialBusy) trialFail('시간 초과 — 흐름이 끊겼다', undefined); }
 const trialCtl = {
   feed(ev: StrokeEvent) {
@@ -389,7 +410,7 @@ function trialFail(reason: string | null, avg?: number) {
   $('#trialRetry').style.display = 'inline-block';
 }
 function trialPass(avg: number) {
-  trialBusy = true; clearTimeout(trialTimer);
+  trialBusy = true; trialPassed = true; clearTimeout(trialTimer);
   setTrialMaster(`합격! 평균 ${avg}. 마나가 깨어났다 — 이제 검에 기(氣)를 싣는다.`, 'perfect');
   $('#trialRetry').style.display = 'none';
   setTimeout(exitTrial, 2800);
@@ -397,6 +418,55 @@ function trialPass(avg: number) {
 $('#btnTrial').addEventListener('click', () => { trialActive ? exitTrial() : enterTrial(); });
 $('#trialRetry').addEventListener('click', enterTrial);
 $('#trialExit').addEventListener('click', exitTrial);
+
+/* ---- T2-01 노드 맵 + 스테이지 (DOM). 맵→노드→씬→복귀 순환 ---- */
+const STAGE = STAGES.stage1;
+let mapCurrent = STAGE.start;
+const mapVisited = new Set<string>([STAGE.start]);
+const NODE_ICON: Record<string, string> = { battle: '⚔', training: '✎', event: '❈', shop: '₩', rest: '☾' };
+function enterMap() {
+  mapActive = true; $('#map').classList.add('on'); $('#hint').style.display = 'none'; $('#btnMap').classList.add('active');
+  $('#mapTitle').textContent = STAGE.name;
+  renderMap();
+}
+function exitMap() { mapActive = false; $('#map').classList.remove('on'); $('#btnMap').classList.remove('active'); }
+function renderMap() {
+  const nodes = STAGE.nodes;
+  const cur = nodes[mapCurrent];
+  const avail = new Set(cur.next);
+  const maxCol = Math.max(...Object.values(nodes).map(n => n.col));
+  let grid = '';
+  for (let c = 0; c <= maxCol; c++) {
+    const col = Object.entries(nodes).filter(([, n]) => n.col === c);
+    grid += '<div class="mapcol">' + col.map(([id, n]) => {
+      const state = id === mapCurrent ? 'cur' : (mapVisited.has(id) ? 'done' : (avail.has(id) ? 'avail' : 'lock'));
+      const dis = state === 'avail' ? '' : 'disabled';
+      return `<button class="mapnode t-${n.type} ${state}" data-id="${id}" ${dis}><span class="ic">${NODE_ICON[n.type]}</span>${n.label}</button>`;
+    }).join('') + '</div>';
+  }
+  const cleared = mapVisited.has('boss');
+  $('#mapBody').innerHTML = `<div id="mapGrid">${grid}</div>`;
+  $('#mapHint').textContent = cleared ? '⚑ 스테이지 1 관문장을 넘었다 — 데모 구간 완료!' : `다음 노드를 선택하라 · 현재 구역: ${cur.zone}`;
+  $('#mapBody').querySelectorAll('.mapnode.avail').forEach(b => b.addEventListener('click', () => selectNode((b as HTMLElement).dataset.id!)));
+}
+function selectNode(id: string) {
+  const n = STAGE.nodes[id];
+  if (n.type === 'event' || n.type === 'shop' || n.type === 'rest') {
+    // 간이 노드: 맵 유지, 메시지 후 완료(대화/상점은 T2-05/T2-04)
+    const note = n.type === 'rest' ? '기력을 회복했다.' : (n.type === 'shop' ? '행상을 만났다 (상점은 T2-04).' : '사건이 벌어졌다 (대화는 T2-05).');
+    $('#mapHint').textContent = `${NODE_ICON[n.type]} ${n.label} — ${note}`;
+    mapVisited.add(id); mapCurrent = id;
+    setTimeout(renderMap, 850);
+    return;
+  }
+  // 씬 노드(전투/수련): 씬 진입 → 종료 시 afterScene으로 맵 복귀
+  afterScene = (success) => { if (success) { mapVisited.add(id); mapCurrent = id; } enterMap(); };
+  exitMap();
+  if (n.type === 'battle') enterCombat('goblin');   // 조우/정예/보스 구분은 T2-03/T2-06
+  else if (n.type === 'training') enterTraining();
+}
+$('#btnMap').addEventListener('click', () => { mapActive ? exitMap() : enterMap(); });
+$('#mapExit').addEventListener('click', exitMap);
 
 /* ---- 검로(劍路) 입력: Pointer Events. T0-02 ---- */
 let drawing = false, points: Pt[] = [], t0 = 0, gRect: DOMRect | null = null;

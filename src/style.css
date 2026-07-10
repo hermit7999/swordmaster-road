@@ -27,13 +27,16 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
 .bar b { width: 34px; font-weight: 500; opacity: .8; }
 .track { flex: 1; height: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
 .fill { height: 100%; width: 0; background: var(--gold); transition: width .18s ease; }
-#comboBox { min-width: 190px; text-align: right; }
-#comboTitle { font-size: 12px; opacity: .6; }
-#comboSteps { font-size: 15px; letter-spacing: 1px; }
+/* 버그1 수정: 콤보/마나/숙련 상태를 우상단(#ctrl과 경합)에서 하단 중앙 스트립으로 이동. #stage 안에 위치. */
+#comboBox { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); z-index: 13;
+  max-width: 56vw; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 2px 12px;
+  text-align: center; background: rgba(22,19,15,.5); border: 1px solid var(--line); border-radius: 8px; padding: 3px 12px; pointer-events: none; }
+#comboTitle { font-size: 10.5px; opacity: .5; }
+#comboSteps { font-size: 13px; letter-spacing: 1px; }
 #comboSteps .on { color: var(--gold); }
 #comboSteps .off { opacity: .35; }
-#manaLine { font-size: 12px; color: var(--gold); min-height: 16px; }
-#mastery { font-size: 10.5px; opacity: .55; margin-top: 2px; }
+#manaLine { font-size: 12px; color: var(--gold); }
+#mastery { font-size: 10px; opacity: .55; width: 100%; }
 
 /* 전투/제스처 면 */
 #stage { position: relative; flex: 1; }
@@ -63,10 +66,23 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
   z-index: 16; font-size: 13px; color: var(--gold); background: rgba(22,19,15,.85);
   border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; opacity: 0; transition: opacity .2s; }
 
-/* 컨트롤 */
-#ctrl { position: absolute; top: 8px; right: 12px; z-index: 25; display: flex; gap: 6px; }
+/* 컨트롤 — 버그1: wrap+max-width로 우상단 안에서 정돈(하단 상태와 경합 제거) */
+#ctrl { position: absolute; top: 8px; right: 12px; z-index: 25; display: flex; gap: 6px;
+  flex-wrap: wrap; justify-content: flex-end; max-width: 62%; }
 #ctrl button { font-size: 11px; color: var(--bone); background: var(--panel);
   border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px; cursor: pointer; }
+
+/* 짧은 화면(폰 가로, 주소창 포함 실질 높이 ~350px대) — HUD 축소로 겹침 방지 */
+@media (max-height: 480px) {
+  #hud { padding: 6px 10px; gap: 10px; }
+  #gradeBox { min-width: 120px; }
+  #grade { font-size: 22px; letter-spacing: 1px; }
+  #accLine { font-size: 11px; } #strokeName { font-size: 10px; }
+  .bars { max-width: 170px; } .bar { font-size: 10px; margin: 2px 0; }
+  #ctrl { gap: 4px; max-width: 58%; }
+  #ctrl button { font-size: 10px; padding: 3px 6px; border-radius: 6px; }
+  #comboBox { max-width: 52vw; bottom: 4px; }
+}
 #ctrl button.active { color: var(--gold); border-color: var(--gold); }
 
 /* 수련(修練) 오버레이 */
@@ -115,6 +131,28 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
 #trialActions button { font-size: 11px; color: var(--bone); background: var(--panel); border: 1px solid var(--line);
   border-radius: 7px; padding: 4px 10px; cursor: pointer; }
 #trialRetry { display: none; }
+
+/* 노드 맵(T2-01) */
+#map { position: absolute; inset: 40px 12px 12px 12px; z-index: 30; display: none;
+  flex-direction: column; align-items: center; gap: 10px;
+  background: rgba(22,19,15,.94); border: 1px solid var(--line); border-radius: 12px; padding: 14px; overflow: auto; }
+#map.on { display: flex; }
+#mapTitle { font-size: 16px; font-weight: 800; color: var(--gold); }
+#mapBody { width: 100%; }
+#mapGrid { display: flex; gap: 14px; justify-content: center; align-items: center; min-width: min-content; padding: 6px; }
+.mapcol { display: flex; flex-direction: column; gap: 10px; justify-content: center; }
+.mapnode { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 74px; padding: 8px 4px;
+  font-size: 11px; color: var(--bone); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.mapnode .ic { font-size: 20px; }
+.mapnode.t-battle .ic { color: var(--blood); } .mapnode.t-training .ic, .mapnode.t-event .ic { color: var(--gold); }
+.mapnode.cur { border-color: var(--bone); box-shadow: 0 0 0 1px var(--bone) inset; }
+.mapnode.done { opacity: .45; }
+.mapnode.avail { border-color: var(--gold); color: var(--gold); animation: nodepulse 1.4s ease-in-out infinite; }
+.mapnode.lock { opacity: .25; }
+.mapnode:disabled { cursor: default; }
+@keyframes nodepulse { 0%,100% { box-shadow: 0 0 0 0 rgba(201,168,106,.0); } 50% { box-shadow: 0 0 8px 1px rgba(201,168,106,.5); } }
+#mapHint { font-size: 12px; opacity: .8; text-align: center; }
+#mapExit { font-size: 11px; color: var(--bone); background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 4px 12px; cursor: pointer; }
 
 /* 자가진단 패널 */
 #diag { position: absolute; left: 12px; bottom: 12px; z-index: 25; max-width: 46%;

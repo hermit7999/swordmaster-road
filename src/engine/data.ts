@@ -5,6 +5,7 @@ import techniquesJson from '../data/techniques.json';
 import stylesJson from '../data/styles.json';
 import enemiesJson from '../data/enemies.json';
 import trialsJson from '../data/trials.json';
+import stage1Json from '../data/stages/stage1.json';
 import type { StrokeSpec, Style } from './types';
 
 export interface Balance {
@@ -48,6 +49,9 @@ export interface Technique {
 export interface EnemyAttack { name: string; dir: string; counter: string; counterName: string; damage: number }
 export interface Enemy { name: string; hp: number; attacks: EnemyAttack[] }
 export interface Trial { name: string; strokes: string[]; intervalMs: number; avgPass: number }
+export type NodeType = 'battle' | 'training' | 'event' | 'shop' | 'rest';
+export interface StageNode { zone: string; col: number; type: NodeType; battleKind?: string; label: string; next: string[] }
+export interface Stage { name: string; start: string; nodes: Record<string, StageNode> }
 
 export const BALANCE = balanceJson as Balance;
 export const STROKE_TEMPLATES = strokesJson as unknown as Record<string, StrokeSpec>;
@@ -55,3 +59,4 @@ export const TECHNIQUES = techniquesJson as unknown as Record<string, Technique>
 export const STYLES = stylesJson as unknown as Record<string, Style>;
 export const ENEMIES = enemiesJson as unknown as Record<string, Enemy>;
 export const TRIALS = trialsJson as unknown as Record<string, Trial>;
+export const STAGES = { stage1: (stage1Json as any).stage1 } as unknown as Record<string, Stage>;
