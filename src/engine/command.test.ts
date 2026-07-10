@@ -10,12 +10,14 @@ function idealInputs(id: string): CommandInput[] {
   return spec.raw.map((dir, i) => ({ dir: dir as Dir, t: spec.rhythm[i] }));
 }
 
-describe('T1-03 검결 8종 인식', () => {
+describe('T1-03 검결 10종 인식', () => {
   const cases: [string, CommandInput[]][] = [
     ['h_lr', [{ dir: 'L', t: 0 }, { dir: 'R', t: 400 }]],
     ['h_rl', [{ dir: 'R', t: 0 }, { dir: 'L', t: 400 }]],       // →←
     ['diag_dr', [{ dir: 'D', t: 0 }, { dir: 'R', t: 20 }]],      // ↓+→
     ['diag_dl', [{ dir: 'D', t: 0 }, { dir: 'L', t: 20 }]],      // ↓+←
+    ['diag_ur', [{ dir: 'U', t: 0 }, { dir: 'R', t: 20 }]],      // ↑+→ (10종)
+    ['diag_ul', [{ dir: 'U', t: 0 }, { dir: 'L', t: 20 }]],      // ↑+← (10종)
     ['v_down', [{ dir: 'U', t: 0 }, { dir: 'D', t: 400 }]],      // ↑↓
     ['v_up', [{ dir: 'D', t: 0 }, { dir: 'U', t: 400 }]],        // ↓↑
     ['thrust', [{ dir: 'R', t: 0 }, { dir: 'R', t: 150 }]],      // →→

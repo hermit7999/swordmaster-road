@@ -12,7 +12,8 @@ const canvas = document.querySelector('#ink') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
 let W = 0, H = 0, currentStyle: Style = STYLES.uraken;
 let soundOn = true, overlayOn = true;
-const mastery: Record<string, number> = { h_lr: 0, diag_dr: 0, v_down: 0 };
+// 숙련은 전 획을 데이터에서 파생(하드코딩 금지). 획 추가 시 자동 반영.
+const mastery: Record<string, number> = Object.fromEntries(Object.keys(STROKE_TEMPLATES).map(k => [k, 0]));
 
 function resize() {
   const r = canvas.getBoundingClientRect();
@@ -181,7 +182,8 @@ function updateHud(ev: StrokeEvent, extra?: string) {
   ($('#fStr') as HTMLElement).style.width = (bd.straight * 100) + '%';
   ($('#fSpd') as HTMLElement).style.width = (bd.speed * 100) + '%';
   ($('#fCmp') as HTMLElement).style.width = (bd.completion * 100) + '%';
-  $('#mastery').textContent = `숙련  횡${mastery.h_lr} · 사선${mastery.diag_dr} · 내려${mastery.v_down}`;
+  const prac = Object.entries(mastery).filter(([, v]) => v > 0).map(([k, v]) => `${STROKE_TEMPLATES[k].name.replace(/\(.*\)/, '')}${v}`);
+  $('#mastery').textContent = '숙련  ' + (prac.length ? prac.join(' · ') : '—');
 }
 function rejectHud(reason: string) {
   $('#grade').textContent = GRADE_KO[reason] || reason;

@@ -47,6 +47,8 @@ function sample(id: string): Pt[] {
     case 'h_rl': { const len = rr(0.18, 0.85) * DIAG; const x1 = rr(60, Math.max(70, 780 - len)); return lineSample([x1 + len, cy], [x1, cy], n, rr(180, 520), jit); }
     case 'diag_dr': { const len = rr(0.22, 0.55); const dx = len * DIAG * 0.7; return lineSample([cx - dx / 2, 60], [cx - dx / 2 + dx, 60 + dx], n, rr(220, 520), jit); }
     case 'diag_dl': { const len = rr(0.22, 0.55); const dx = len * DIAG * 0.7; return lineSample([cx + dx / 2, 60], [cx + dx / 2 - dx, 60 + dx], n, rr(220, 520), jit); }
+    case 'diag_ur': { const len = rr(0.22, 0.55); const dx = len * DIAG * 0.7; return lineSample([cx - dx / 2, 400], [cx - dx / 2 + dx, 400 - dx], n, rr(220, 520), jit); }  // ↗ 좌하→우상
+    case 'diag_ul': { const len = rr(0.22, 0.55); const dx = len * DIAG * 0.7; return lineSample([cx + dx / 2, 400], [cx + dx / 2 - dx, 400 - dx], n, rr(220, 520), jit); }  // ↖ 우하→좌상
     case 'v_down': { const len = rr(0.20, 0.85) * 450; const y0 = rr(30, Math.max(40, 420 - len)); return lineSample([cx, y0], [cx, y0 + len], n, rr(180, 520), jit); }
     case 'v_up': { const len = rr(0.20, 0.85) * 450; const y0 = rr(30, Math.max(40, 420 - len)); return lineSample([cx, y0 + len], [cx, y0], n, rr(180, 520), jit); }
     case 'thrust': { const len = rr(0.05, 0.15) * DIAG; const x0 = rr(200, 560); return lineSample([x0, cy], [x0 + len, cy], Math.round(rr(10, 22)), rr(70, 280), rr(1, 7)); }

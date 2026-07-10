@@ -117,6 +117,64 @@
       0
     ]
   },
+  "diag_ur": {
+    "name": "사선올려베기(↗)",
+    "shapeType": "line",
+    "path": [
+      [
+        0,
+        1
+      ],
+      [
+        1,
+        0
+      ]
+    ],
+    "lenBand": [
+      0.16,
+      1
+    ],
+    "command": [
+      "UR"
+    ],
+    "raw": [
+      "U",
+      "R"
+    ],
+    "rhythm": [
+      0,
+      0
+    ]
+  },
+  "diag_ul": {
+    "name": "사선올려베기(↖)",
+    "shapeType": "line",
+    "path": [
+      [
+        1,
+        1
+      ],
+      [
+        0,
+        0
+      ]
+    ],
+    "lenBand": [
+      0.16,
+      1
+    ],
+    "command": [
+      "UL"
+    ],
+    "raw": [
+      "U",
+      "L"
+    ],
+    "rhythm": [
+      0,
+      0
+    ]
+  },
   "v_down": {
     "name": "내려찍기",
     "shapeType": "line",

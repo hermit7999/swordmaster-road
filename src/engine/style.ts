@@ -9,6 +9,7 @@ import type { Style } from './types';
 export const MIRROR_STROKE: Record<string, string> = {
   h_lr: 'h_rl', h_rl: 'h_lr',
   diag_dr: 'diag_dl', diag_dl: 'diag_dr',
+  diag_ur: 'diag_ul', diag_ul: 'diag_ur',
   v_down: 'v_down', v_up: 'v_up',
   thrust: 'thrust', wonmu: 'wonmu',
 };

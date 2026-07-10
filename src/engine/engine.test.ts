@@ -1,7 +1,7 @@
 // M0 회귀 29종을 vitest로 이관(T1-01 완료 기준). 새 엔진 구조에서 전부 통과해야.
 import { describe, it, expect } from 'vitest';
 import {
-  judgeStroke, recognizeCommand, judgeRhythm, STYLES, BALANCE,
+  judgeStroke, recognizeCommand, judgeRhythm, STYLES, BALANCE, mirrorStrokeId,
 } from './index';
 import type { Pt } from './index';
 
@@ -159,10 +159,34 @@ describe('버그3 사선 섹터 분류 + 이상각 감점', () => {
     expect(r.breakdown!.direction).toBeLessThan(0.8);       // A=1−13/45=0.71 반영
     expect(r.accuracy!).toBeLessThan(100);                  // 총점도 감점(퍼펙트 아님)
   });
-  it('↖/↗(획 없는 섹터)는 획 불명', () => {
-    const r = judgeStroke(lineAtAngle(-45), META);          // -45° = ↗ up-right(315°)
-    expect(r.rejected).toBe(true);
-    expect(r.reason).toBe('unknown');
+  // 10종 설계 변경: ↗/↖ = 사선올려베기(이전 "불명" 폐기)
+  it('↗(up-right, -45°) = 사선올려베기 diag_ur', () => {
+    const r = judgeStroke(lineAtAngle(-45), META);          // 315°
+    expect(r.rejected).toBe(false);
+    expect(r.strokeId).toBe('diag_ur');
+    expect(r.breakdown!.direction).toBeGreaterThan(0.98);   // 이상각 일치
+  });
+  it('↖(up-left, -135°) = 사선올려베기 diag_ul', () => {
+    expect(judgeStroke(lineAtAngle(-135), META).strokeId).toBe('diag_ul');  // 225°
+  });
+  it('10방향 전부 획 배정 → 직선 획 불명 없음(원형 아닌 기울기)', () => {
+    for (let deg = -180; deg < 180; deg += 15) {
+      const r = judgeStroke(lineAtAngle(deg), META);
+      expect(r.rejected, `deg ${deg}`).toBe(false);
+    }
+  });
+});
+
+describe('10종 신규 획(↗↖) 검결·미러', () => {
+  it('↑+→ 동시(chord) = diag_ur', () => expect(recognizeCommand([{ dir: 'U', t: 0 }, { dir: 'R', t: 20 }], BALANCE.simulMs)?.strokeId).toBe('diag_ur'));
+  it('↑+← 동시(chord) = diag_ul', () => expect(recognizeCommand([{ dir: 'U', t: 0 }, { dir: 'L', t: 20 }], BALANCE.simulMs)?.strokeId).toBe('diag_ul'));
+  it('패드 단일 ↗ = diag_ur', () => expect(recognizeCommand([{ dir: 'UR', t: 0 }], BALANCE.simulMs)?.strokeId).toBe('diag_ur'));
+  it('diag_ur 리듬(동시) = 퍼펙트', () => expect(judgeRhythm([{ dir: 'U', t: 0 }, { dir: 'R', t: 15 }], 'diag_ur').grade).toBe('perfect'));
+  it('미러 매핑 diag_ur↔diag_ul', () => { expect(mirrorStrokeId('diag_ur')).toBe('diag_ul'); expect(mirrorStrokeId('diag_ul')).toBe('diag_ur'); });
+  it('좌수: ↖ 물리입력이 diag_ur로(미러)', () => {
+    // 좌수 플레이어는 diag_ur(↗)를 그 미러인 ↖로 그림 → canonical diag_ur.
+    const r = judgeStroke(lineAtAngle(-135), META, STYLES.saken);
+    expect(r.strokeId).toBe('diag_ur');
   });
 });
 
