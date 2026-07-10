@@ -1,0 +1,65 @@
+{
+  "prologue": {
+    "bg": "bg_bossgate",
+    "lines": [
+      { "text": "상운검문(祥雲劍門)이 불탄 밤을, 나는 이름과 함께 잃었다." },
+      { "speaker": "현곡", "portrait": "portrait_master", "text": "…아직 숨이 붙어 있구나. 손을 다오." },
+      { "speaker": "현곡", "portrait": "portrait_master", "text": "네 가문의 검은 재가 되었다. 허나 검(劍)은 쇠가 아니라 눈(眼)에서 나온다." },
+      { "speaker": "무명", "portrait": "portrait_hero", "side": "right", "text": "…원수를. 갚고 싶습니다." },
+      { "speaker": "현곡", "portrait": "portrait_master", "text": "그 말은 아직 이르다. 원수를 보기(觀) 전에, 네 검이 먼저 무너질 테니." },
+      { "speaker": "현곡", "portrait": "portrait_master", "text": "첫 획을 그어라. 틀려도 좋다 — 오늘은 네가 살아 검을 쥔 것만으로 족하다." },
+      { "stroke": "lenient", "text": "▶ 화면을 가로질러 검을 그어라 — 방향은 무엇이든 좋다" },
+      { "speaker": "현곡", "portrait": "portrait_master", "text": "되었다. 그것이 검로(劍路)다. 이제 이 늙은이가 두 글자를 새겨주마 — 관(觀), 응(應)." }
+    ],
+    "next": "style_select"
+  },
+  "style_select": {
+    "lines": [
+      { "speaker": "현곡", "portrait": "portrait_master", "text": "검을 쥐기 전, 하나만 묻자. — 너는 어느 손에 검을 쥘 것이냐." },
+      { "choice": [
+        { "text": "오른손 — 우수검류(右手劍流)", "hint": "정통. 궤적이 순(順)하다", "styleId": "uraken" },
+        { "text": "왼손 — 좌수검류(左手劍流)", "hint": "이단. 모든 획이 거울처럼 좌우로 뒤집힌다", "styleId": "saken" }
+      ] }
+    ],
+    "reactions": {
+      "uraken": [
+        { "speaker": "현곡", "portrait": "portrait_master", "text": "바르다. 상운의 검이 그러했지." },
+        { "speaker": "현곡", "portrait": "portrait_master", "text": "한번 정한 손은 이번 생의 검로다. 다른 손의 검이 궁금하거든 — 이 길을 끝까지 걷고 나서 다시 오너라." }
+      ],
+      "saken": [
+        { "speaker": "현곡", "portrait": "portrait_master", "text": "…남다르구나. 뒤집힌 검로는 적의 눈도 함께 뒤집는다." },
+        { "speaker": "현곡", "portrait": "portrait_master", "text": "한번 정한 손은 이번 생의 검로다. 다른 손의 검이 궁금하거든 — 이 길을 끝까지 걷고 나서 다시 오너라." }
+      ]
+    }
+  },
+  "node_start": { "lines": [
+    { "speaker": "현곡", "portrait": "portrait_master", "text": "관문 너머에 적하(赤霞)의 수하가 있다. 거기까지가 오늘의 검이다." }
+  ] },
+  "node_t1": { "lines": [
+    { "speaker": "현곡", "portrait": "portrait_master", "text": "보고(觀) 응하는(應) 리듬을 몸에 새겨라. 검은 급할수록 보이지 않는다." }
+  ] },
+  "node_b1": { "lines": [
+    { "speaker": "무명", "portrait": "portrait_hero", "side": "right", "text": "…처음으로, 남을 겨눈다." }
+  ] },
+  "node_e1": { "lines": [
+    { "text": "두 갈래 길. 한쪽엔 봇짐장수의 등불, 한쪽엔 검은 기운이 어렸다." },
+    { "speaker": "현곡", "portrait": "portrait_master", "text": "물자든 검이든, 택(擇)은 너의 몫이다." }
+  ] },
+  "node_s1": { "lines": [
+    { "speaker": "약옹", "portrait": "portrait_merchant", "text": "허, 검문 터에 아직 살아있는 게 있었군. 필요한 게 있으면 값을 치르게, 젊은 검객." }
+  ] },
+  "node_b2": { "lines": [
+    { "text": "관문을 지키는 정예가 검집에 손을 얹은 채 웃는다." },
+    { "speaker": "정예", "text": "관문장께서 한 획을 아끼신다더군 — 그게 네 무덤이다." }
+  ] },
+  "node_r1": { "lines": [
+    { "speaker": "현곡", "portrait": "portrait_master", "text": "복수는 검의 이유가 아니다. 이유가 된 검은 반드시 급해지고, 급한 검은 보이지 않는다." }
+  ] },
+  "node_e2": { "lines": [
+    { "text": "관문 앞. 잿더미 너머로, 붉은 노을 같은 그림자가 스친다.", "silhouette": "portrait_rival" },
+    { "speaker": "무명", "portrait": "portrait_hero", "side": "right", "text": "적하(赤霞). …반드시, 이 검이 닿는다." }
+  ] },
+  "node_boss": { "lines": [
+    { "speaker": "일섬귀", "text": "내 검은 오직 한 획(一閃). — 그 한 획을, 네가 아느냐." }
+  ] }
+}

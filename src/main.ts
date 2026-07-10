@@ -2,17 +2,18 @@
 import './style.css';
 import {
   BALANCE, STROKE_TEMPLATES, STYLES, ENEMIES, TRIALS, STAGES,
-  CONSUMABLES, SWORDS, ITEMS,
+  CONSUMABLES, SWORDS, ITEMS, STORY,
   judgeStroke, recognizeCommand, judgeRhythm, gradeOf, createTechniqueTracker,
-  bbox, resample, otherStyle, levelFromXp, xpToNext, derivedStats,
+  bbox, resample, levelFromXp, xpToNext, derivedStats,
 } from './engine';
+import type { Dialogue, DlgLine } from './engine';
 import type { Pt, Dir, Grade, Style, StrokeEvent, CommandInput, Enemy, EnemyAttack } from './engine';
 import { loadArt, setSceneBg, artUrl } from './art';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const canvas = document.querySelector('#ink') as HTMLCanvasElement;
 const ctx = canvas.getContext('2d')!;
-let W = 0, H = 0, currentStyle: Style = STYLES.uraken;
+let W = 0, H = 0, currentStyle: Style = STYLES.uraken, currentStyleId = 'uraken';
 let soundOn = true, overlayOn = true;
 // 숙련은 전 획을 데이터에서 파생(하드코딩 금지). 획 추가 시 자동 반영.
 const mastery: Record<string, number> = Object.fromEntries(Object.keys(STROKE_TEMPLATES).map(k => [k, 0]));
@@ -521,10 +522,13 @@ let checkpointZone = STAGE.nodes[STAGE.start].zone;
 let gold = BALANCE.progression.startGold, xp = 0;
 let inventory: Record<string, number> = {};
 let equippedSword = 'nameless';
+// T2-05: 스토리 진행 — 유파 선택(styleId=currentStyleId), 프롤로그 완료, 이미 본 대화(자동 스킵)
+let prologueDone = false;
+const seenDialogues = new Set<string>();
 const playerLevel = () => levelFromXp(xp);
 const playerStats = () => derivedStats(playerLevel(), equippedSword);
 function saveGame() {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ version: SAVE_VERSION, stage: 'stage1', current: mapCurrent, visited: [...mapVisited], checkpoint, checkpointZone, gold, xp, inventory, equippedSword })); } catch (_) { /* noop */ }
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ version: SAVE_VERSION, stage: 'stage1', current: mapCurrent, visited: [...mapVisited], checkpoint, checkpointZone, gold, xp, inventory, equippedSword, styleId: currentStyleId, prologueDone, seenDialogues: [...seenDialogues] })); } catch (_) { /* noop */ }
 }
 function loadGame(): boolean {
   try {
@@ -537,6 +541,9 @@ function loadGame(): boolean {
       xp = Number.isFinite(s.xp) ? s.xp : 0;
       inventory = (s.inventory && typeof s.inventory === 'object') ? { ...s.inventory } : {};
       equippedSword = SWORDS[s.equippedSword] ? s.equippedSword : 'nameless';
+      if (STYLES[s.styleId]) setStyle(s.styleId);   // 잠긴 유파 복원
+      prologueDone = !!s.prologueDone;
+      seenDialogues.clear(); (s.seenDialogues || []).forEach((d: string) => seenDialogues.add(d));
       updatePlayerHud();
       return true;
     }
@@ -549,6 +556,7 @@ function resetGame() {
   mapCurrent = STAGE.start; mapVisited.clear(); mapVisited.add(STAGE.start);
   checkpoint = { current: STAGE.start, visited: [STAGE.start] }; checkpointZone = STAGE.nodes[STAGE.start].zone;
   gold = BALANCE.progression.startGold; xp = 0; inventory = {}; equippedSword = 'nameless';
+  prologueDone = false; seenDialogues.clear();   // 새 회차 → 유파 재선택 가능(프롤로그부터)
   updatePlayerHud(); saveGame(); renderMap();
 }
 // T2-04: 전투 승리 보상(골드+경험치) + 레벨업 감지. kind별 보상.
@@ -606,6 +614,13 @@ function renderMap() {
   $('#mapBody').querySelectorAll('.mapnode.avail').forEach(b => b.addEventListener('click', () => selectNode((b as HTMLElement).dataset.id!)));
 }
 function selectNode(id: string) {
+  const key = 'node_' + id;
+  if (STORY[key] && !seenDialogues.has(key)) {   // 노드 첫 진입 시 대화 → 이후 씬
+    seenDialogues.add(key); saveGame();
+    playDialogue(key, () => runNodeScene(id));
+  } else runNodeScene(id);
+}
+function runNodeScene(id: string) {
   const n = STAGE.nodes[id];
   if (n.type === 'shop') {
     // T2-04 상점: 골드로 아이템/검 구매. 떠나면 노드 완료.
@@ -645,6 +660,93 @@ $('#mapReset').addEventListener('click', () => {
   if (!resetArm) { resetArm = true; b.textContent = '정말? 다시 탭'; clearTimeout(resetTimer); resetTimer = setTimeout(() => { resetArm = false; b.textContent = '처음부터'; }, 2500) as unknown as number; return; }
   resetArm = false; clearTimeout(resetTimer); b.textContent = '처음부터'; resetGame();
 });
+/* ---- T2-05 대화 시스템 (초상+텍스트, 탭 진행/자동/스킵). 데이터=STORY(story/stage1.json) ---- */
+let dlgActive = false, dlgInReaction = false, dlgAwaitStroke = false, dlgAuto = false;
+let dlgLines: DlgLine[] = [], dlgIdx = 0;
+let dlgDef: Dialogue | null = null;
+let dlgOnDone: (() => void) | null = null;
+let dlgAutoTimer: number | undefined;
+
+function playDialogue(id: string, onDone: () => void) {
+  const def = STORY[id];
+  if (!def) { onDone(); return; }
+  dlgActive = true; dlgDef = def; dlgLines = def.lines; dlgIdx = 0; dlgInReaction = false; dlgOnDone = onDone;
+  $('#dialogue').classList.add('on'); $('#hint').style.display = 'none';
+  if (def.bg) setSceneBg(def.bg);
+  dlgRender();
+}
+function dlgSetPortrait(line: DlgLine) {
+  const L = $('#dlgPortrait'), R = $('#dlgPortraitR');
+  [L, R].forEach(p => { p.classList.remove('on', 'silhouette'); p.style.backgroundImage = ''; });
+  const name = line.silhouette || line.portrait;
+  if (!name) return;
+  const slot = line.side === 'right' ? R : L;
+  loadArt(name).then(img => { if (img && dlgActive) { slot.style.backgroundImage = `url("${artUrl(name)}")`; slot.classList.add('on'); if (line.silhouette) slot.classList.add('silhouette'); } });
+}
+function dlgRender() {
+  clearTimeout(dlgAutoTimer);
+  const line = dlgLines[dlgIdx];
+  if (!line) { dlgFinishList(); return; }
+  $('#dialogue').classList.remove('stroke', 'choosing'); dlgAwaitStroke = false;
+  dlgSetPortrait(line);
+  $('#dlgSpeaker').textContent = line.speaker || '';
+  $('#dlgText').textContent = line.text || '';
+  const ch = $('#dlgChoices'); ch.innerHTML = '';
+  if (line.choice) {
+    $('#dialogue').classList.add('choosing');
+    line.choice.forEach(c => {
+      const b = document.createElement('button'); b.className = 'dlgChoice';
+      b.innerHTML = `${c.text}${c.hint ? `<small>${c.hint}</small>` : ''}`;
+      b.addEventListener('click', ev => { ev.stopPropagation(); dlgChoose(c.styleId); });
+      ch.appendChild(b);
+    });
+    return;
+  }
+  if (line.stroke) { $('#dialogue').classList.add('stroke'); dlgAwaitStroke = true; return; }
+  if (dlgAuto) dlgAutoTimer = setTimeout(dlgAdvance, 1800 + (line.text?.length || 0) * 45) as unknown as number;
+}
+function dlgAdvance() {
+  if (!dlgActive) return;
+  clearTimeout(dlgAutoTimer);
+  const line = dlgLines[dlgIdx];
+  if (line && (line.choice || (line.stroke && dlgAwaitStroke))) return;   // 선택/획 대기 중엔 탭 무시
+  dlgIdx++;
+  if (dlgIdx < dlgLines.length) dlgRender(); else dlgFinishList();
+}
+function dlgFinishList() {
+  if (!dlgInReaction && dlgDef?.next) { const nx = dlgDef.next, done = dlgOnDone; playDialogue(nx, done || (() => {})); return; }
+  dlgFinish();
+}
+function dlgChoose(styleId: string) {
+  setStyle(styleId); saveGame();
+  $('#dialogue').classList.remove('choosing');
+  const react = dlgDef?.reactions?.[styleId];
+  if (react && react.length) { dlgLines = react; dlgIdx = 0; dlgInReaction = true; dlgRender(); }
+  else dlgFinish();
+}
+function dlgSkip() {
+  clearTimeout(dlgAutoTimer);
+  while (dlgActive) {
+    const line = dlgLines[dlgIdx];
+    if (!line) { dlgFinishList(); return; }
+    if (line.choice || line.stroke) { dlgRender(); return; }   // 선택/획에서 멈춤
+    dlgIdx++;
+  }
+}
+function dlgFinish() {
+  dlgActive = false; dlgAwaitStroke = false; clearTimeout(dlgAutoTimer);
+  $('#dialogue').classList.remove('on', 'stroke', 'choosing');
+  const cb = dlgOnDone; dlgOnDone = null; dlgDef = null;
+  if (cb) cb();
+}
+function maybeStartPrologue() {
+  if (prologueDone) return;
+  playDialogue('prologue', () => { prologueDone = true; saveGame(); enterMap(); });   // 프롤로그→유파선택→스테이지1 진입
+}
+$('#dlgBox').addEventListener('click', () => { if (!dlgAwaitStroke) dlgAdvance(); });
+$('#dlgSkip').addEventListener('click', ev => { ev.stopPropagation(); dlgSkip(); });
+$('#dlgAuto').addEventListener('click', ev => { ev.stopPropagation(); dlgAuto = !dlgAuto; $('#dlgAuto').classList.toggle('active', dlgAuto); if (dlgAuto) dlgAdvance(); });
+
 /* ---- T2-04 상점(行商) 씬 ---- */
 let shopActive = false;
 function enterShop() {
@@ -693,7 +795,7 @@ function equipSword(id: string) {
 }
 $('#shopExit').addEventListener('click', exitShop);
 
-loadGame();   // T2-02: 부팅 시 이어하기 로드(맵 열면 저장 진행 반영)
+// (부팅 로드는 하단 부트 블록에서 — setStyle→buildPad가 PAD 상수 초기화 이후여야 함)
 
 /* ---- 검로(劍路) 입력: Pointer Events. T0-02 ---- */
 let drawing = false, points: Pt[] = [], t0 = 0, gRect: DOMRect | null = null;
@@ -713,6 +815,10 @@ function endStroke() {
   if (!drawing) return; drawing = false;
   arbiter.release('gesture');
   const pts = points; liveTrail = null;
+  if (dlgActive) {   // 대화 중: 관대 판정 첫 획 비트만 처리(방향 무관), 그 외 획은 무시
+    if (dlgAwaitStroke && pts.length >= 2) { dlgAwaitStroke = false; dlgAdvance(); }
+    return;
+  }
   const res = judgeStroke(pts, { w: W, h: H }, currentStyle);
   if (pts.length >= 2) {   // [임시 진단 버그3] 순각도(net angle) 표시 — 검증 후 자가진단으로 이동
     const a = pts[0], b = pts[pts.length - 1];
@@ -731,6 +837,7 @@ canvas.addEventListener('pointercancel', endStroke);
 const cmdBuf: CommandInput[] = [];
 let cmdTimer: number | undefined;
 function pushCommandInput(dir: Dir) {
+  if (dlgActive || mapActive) return;   // 대화·지도 중 검결 입력 무시
   const now = performance.now();
   while (cmdBuf.length && now - cmdBuf[0].t > BALANCE.commandWindow) cmdBuf.shift();
   // InputArbiter v2: 아직 안 그린(점만 찍힌) 제스처는 커맨드가 선점(취소). 빠른 응수에서 의도 입력 드롭 방지.
@@ -823,11 +930,18 @@ function toast(msg: string) {
 /* ---- 컨트롤 ---- */
 $('#btnSound').addEventListener('click', e => { soundOn = !soundOn; const b = e.target as HTMLElement; b.classList.toggle('active', soundOn); b.textContent = '소리 ' + (soundOn ? 'ON' : 'OFF'); });
 $('#btnOverlay').addEventListener('click', e => { overlayOn = !overlayOn; const b = e.target as HTMLElement; b.classList.toggle('active', overlayOn); b.textContent = '오버레이 ' + (overlayOn ? 'ON' : 'OFF'); });
-$('#btnStyle').addEventListener('click', e => {
-  currentStyle = otherStyle(currentStyle);   // StyleManager (T1-04)
+// T2-05: 유파는 스토리에서 1회 선택되고 진행 중 잠금(FR-STY-007). 저장 데이터에 styleId 기록.
+// 상단 일반 토글은 제거하고 자가진단(개발용)에만 남긴다. 재선택은 회차 시작(새 게임)에서만.
+function setStyle(id: string) {
+  if (!STYLES[id]) return;
+  currentStyleId = id; currentStyle = STYLES[id];
   tracker = createTechniqueTracker(currentStyle);
-  (e.target as HTMLElement).textContent = '유파: ' + currentStyle.name; buildPad();
-});
+  buildPad();
+}
+function devToggleStyle() {   // 개발용: 자가진단 패널에서만 노출
+  setStyle(currentStyleId === 'uraken' ? 'saken' : 'uraken');
+  runSelfTest();
+}
 $('#btnMetro').addEventListener('click', e => {
   setMetro(!metroOn); const b = e.target as HTMLElement;
   b.classList.toggle('active', metroOn); b.textContent = '메트로놈 ' + (metroOn ? 'ON' : 'OFF');
@@ -883,9 +997,13 @@ function runSelfTest() {
   add('좌수 ↑↓ 클러스터=좌측', STYLES.saken.updownCluster === 'left' && STYLES.uraken.updownCluster === 'right');
   const passed = T.filter(t => t.ok).length;
   $('#diag').innerHTML = `<h4>자가진단 ${passed}/${T.length} 통과</h4>` +
+    `<div class="devrow"><button id="devStyle">[개발] 유파 전환 · 현재: ${currentStyle.name}</button></div>` +
     T.map(t => `<div class="${t.ok ? 'pass' : 'fail'}">${t.ok ? '✓' : '✗'} ${t.name}${t.extra != null ? ' · ' + t.extra : ''}</div>`).join('');
+  const ds = document.querySelector('#devStyle'); if (ds) ds.addEventListener('click', devToggleStyle);
   console.log(`[소드마스터 자가진단] ${passed}/${T.length} 통과`);
 }
 
 /* ---- 부트 ---- */
 resize(); buildPad(); draw(); updateTech(null); runSelfTest();
+loadGame();             // T2-02: 이어하기 로드(PAD 상수·buildPad 초기화 이후 — setStyle 안전)
+maybeStartPrologue();   // T2-05: 새 게임이면 프롤로그→유파 선택→스테이지1 진입

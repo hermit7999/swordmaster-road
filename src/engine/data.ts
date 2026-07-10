@@ -7,6 +7,7 @@ import enemiesJson from '../data/enemies.json';
 import trialsJson from '../data/trials.json';
 import stage1Json from '../data/stages/stage1.json';
 import itemsJson from '../data/items.json';
+import storyJson from '../data/story/stage1.json';
 import type { StrokeSpec, Style } from './types';
 
 export interface Balance {
@@ -62,6 +63,9 @@ export interface EnemyAttack { name: string; dir: string; counter: string; count
 export interface Enemy { name: string; hp: number; image?: string; attacks: EnemyAttack[] }
 export interface Trial { name: string; strokes: string[]; intervalMs: number; avgPass: number }
 export interface Item { name: string; kind: 'consumable' | 'sword'; effect?: string; value?: number; power?: number; price: number; desc: string; source: string[] }
+export interface DlgChoice { text: string; hint?: string; styleId: string }
+export interface DlgLine { text?: string; speaker?: string; portrait?: string; side?: 'left' | 'right'; silhouette?: string; stroke?: string; choice?: DlgChoice[] }
+export interface Dialogue { bg?: string; lines: DlgLine[]; next?: string; reactions?: Record<string, DlgLine[]> }
 export type NodeType = 'battle' | 'training' | 'event' | 'shop' | 'rest';
 export interface StageNode { zone: string; col: number; type: NodeType; battleKind?: string; label: string; next: string[] }
 export interface Stage { name: string; start: string; nodes: Record<string, StageNode> }
@@ -78,4 +82,5 @@ export const ITEMS = {
 } as Record<string, Item>;
 export const CONSUMABLES = itemsJson.consumables as unknown as Record<string, Item>;
 export const SWORDS = itemsJson.swords as unknown as Record<string, Item>;
+export const STORY = storyJson as unknown as Record<string, Dialogue>;
 export const STAGES = { stage1: (stage1Json as any).stage1 } as unknown as Record<string, Stage>;
