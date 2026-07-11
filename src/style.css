@@ -178,6 +178,56 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
   font-size: clamp(48px, 14vw, 120px); font-weight: 900; color: #ffe9b0; text-shadow: 0 0 40px rgba(255,200,90,.9); letter-spacing: 8px; }
 #spFinish.on #spFinishText { animation: finishText .9s .38s ease-out forwards; }
 @keyframes finishText { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.5); } 40% { opacity: 1; transform: translate(-50%,-50%) scale(1.05); } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.15); } }
+/* ===== 재설계 스파이크 — momentum 공격권 FSM ===== */
+#momentum { position: absolute; inset: 0; z-index: 22; pointer-events: none; display: none; }
+#momentum.on { display: block; }
+#moEdge { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 0 transparent; transition: box-shadow .3s ease; }
+#app.moMine #moEdge { box-shadow: inset 0 0 90px 12px rgba(201,168,106,.5); }
+#app.moEnemy #moEdge { box-shadow: inset 0 0 92px 14px rgba(156,47,38,.55); }
+#moTop { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: min(520px,88%); display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--bone); background: rgba(18,15,12,.7); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; }
+#moArt { position: absolute; top: 66px; left: 50%; transform: translateX(-50%); width: min(280px,56%); height: 42%;
+  background-size: contain; background-position: center top; background-repeat: no-repeat; filter: drop-shadow(0 6px 16px rgba(0,0,0,.6)); }
+#moGuard { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .2s ease; }
+#moArt.gR #moGuard,#moArt.gL #moGuard,#moArt.gH #moGuard,#moArt.gD #moGuard { opacity: 1; }
+#moArt.gR #moGuard { background: linear-gradient(90deg, transparent 52%, rgba(156,47,38,.6) 100%); }
+#moArt.gL #moGuard { background: linear-gradient(270deg, transparent 52%, rgba(156,47,38,.6) 100%); }
+#moArt.gH #moGuard { background: linear-gradient(0deg, transparent 52%, rgba(156,47,38,.6) 100%); }
+#moArt.gD #moGuard { background: linear-gradient(180deg, transparent 52%, rgba(156,47,38,.6) 100%); }
+#moArt.gBroken { filter: drop-shadow(0 0 22px rgba(255,190,70,.85)) brightness(1.12); }
+#moArt.teleY { filter: drop-shadow(0 0 20px rgba(255,200,70,.95)); animation: auraPulse .5s ease-in-out infinite alternate; }
+#moArt.teleR { filter: drop-shadow(0 0 22px rgba(255,60,40,.98)); animation: auraPulse .34s ease-in-out infinite alternate; }
+#moArt.hit { animation: spHit var(--flash-ms,130ms) ease; }
+#moArt.blocked { animation: spBlock 200ms ease; }
+#moArt.knockout { transition: transform .5s cubic-bezier(.3,-0.4,.7,1), opacity .6s ease, filter .6s ease;
+  transform: translate(-30%,-40px) rotate(14deg) scale(.7); opacity: 0; filter: brightness(0) saturate(0); }
+#moSplash { position: absolute; inset: 0; opacity: 0; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(20,15,12,.9) 20%, rgba(20,15,12,0) 46%); background-repeat: no-repeat; background-position: 55% 45%; background-size: 60% 60%; }
+#moSplash.play { animation: splash 220ms ease-out; }
+#moStateLbl { position: absolute; top: 52%; left: 50%; transform: translateX(-50%); font-size: 13px; color: var(--gold); opacity: .82; text-shadow: 0 1px 3px #000; }
+#moLog { position: absolute; top: 30%; left: 50%; transform: translateX(-50%); width: min(560px,90%); text-align: center; font-size: 13px; color: var(--bone); opacity: .85; text-shadow: 0 1px 3px #000; }
+#moGauges { position: absolute; bottom: 46px; left: 50%; transform: translateX(-50%); width: min(520px,88%); display: flex; gap: 12px; }
+.moGauge { flex: 1; display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--bone); }
+.moGauge b { min-width: 40px; color: var(--gold); }
+.moBar { flex: 1; height: 9px; background: var(--panel); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+.moBar > div { height: 100%; width: 0%; background: linear-gradient(90deg,#b98a6a,#ffd76a); transition: width .15s ease; }
+.moBar > .kiki { background: linear-gradient(90deg,#5a86b0,#8fd0ff); }
+#moBottom { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); width: min(520px,88%); display: flex; align-items: center; gap: 8px;
+  font-size: 12px; background: rgba(18,15,12,.68); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; }
+#moBottom span { width: 18px; opacity: .85; }
+#moExit { position: absolute; top: 10px; right: 12px; pointer-events: auto; font-size: 11px; color: var(--bone); background: rgba(18,15,12,.85); border: 1px solid var(--line); border-radius: 7px; padding: 4px 10px; cursor: pointer; }
+#moPopups { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+#moSlashFx { position: absolute; inset: 0; pointer-events: none; opacity: 0; z-index: 2; background: linear-gradient(115deg, transparent 45%, rgba(255,255,255,.92) 49%, rgba(201,168,106,.85) 51%, transparent 56%); }
+#moSlashFx.play { animation: slashSweep .38s ease-out; }
+#moFinish { position: absolute; inset: 0; z-index: 45; display: none; background: rgba(6,5,4,.93); overflow: hidden; }
+#moFinish.on { display: block; animation: finishBlack 1.2s ease-out forwards; }
+#moFinishSlash { position: absolute; top: 50%; left: -20%; width: 140%; height: 5px; background: linear-gradient(90deg, transparent,#fff,#ffd76a,transparent);
+  box-shadow: 0 0 24px 6px rgba(255,220,140,.9); transform: translateY(-50%) rotate(-16deg) scaleX(0); transform-origin: left center; }
+#moFinish.on #moFinishSlash { animation: finishSlash .55s .1s ease-out forwards; }
+#moFinishText { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(.6); opacity: 0;
+  font-size: clamp(48px,14vw,120px); font-weight: 900; color: #ffe9b0; text-shadow: 0 0 40px rgba(255,200,90,.9); letter-spacing: 8px; }
+#moFinish.on #moFinishText { animation: finishText .9s .38s ease-out forwards; }
+
 /* 보스 필살(一閃) 예고 강조 */
 #spTele.sig { color: #ffd76a; font-size: clamp(30px, 7.5vw, 62px);
   text-shadow: 0 0 34px rgba(255,190,70,.95), 0 2px 4px #000; }

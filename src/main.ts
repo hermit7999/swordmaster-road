@@ -174,6 +174,7 @@ function emitStroke(ev: StrokeEvent, extra?: string) {
   if (ev.grade !== 'miss') mastery[ev.strokeId] = (mastery[ev.strokeId] || 0) + gradePoints(ev.grade);
   playGrade(ev.grade); haptic(ev.grade);
   updateHud(ev, extra);
+  if (moActive) { momentumOnStroke(ev, pendingHeavy); return; }   // 재설계 스파이크(momentum FSM)
   if (spikeActive) { spikeOnStroke(ev); return; }         // 전투(3층 루프)로 라우팅
   if (trialActive) { trialCtl.feed(ev); return; }         // T1-08 승급 시험으로 라우팅
   if (trainingActive) { trainingCtl.feed(ev); return; }   // T1-06 수련 모드로 라우팅
@@ -322,6 +323,7 @@ let spikeResult: 'win' | 'lose' | 'quit' = 'quit';
 let feelShakeMul = 1, feelHitstopMul = 1;   // 자가진단 슬라이더 튜닝
 // 판정 코어(자세/콤보/그로기/회피)
 let pendingFlick: 'L' | 'R' | null = null;
+let pendingHeavy = false;   // 강공격(차지=긴 획) 판정 — momentum 모드에서 사용
 let spGuard: string[] = [], spGuardTimer: number | undefined;
 let spCombo = 0, spGroggy = 0, spGroggyBroken = false, spGroggyTimer: number | undefined, spGroggyDecayTimer: number | undefined;
 let spInvulnUntil = 0;
@@ -679,6 +681,210 @@ function playerHurtFx() {
   setTimeout(() => app.classList.remove('hurt'), 320);
 }
 $('#spExit').addEventListener('click', exitSpike);
+
+/* ==== 재설계 스파이크 1 — 공격권(攻擊權) 쟁탈 momentum FSM. 신규·병행(기존 combat 불변).
+   3상태(대치/내공세/적공세) + 행동 5종. 판정 엔진·아츠·플릭·연출 재사용. 자가진단 진입. ==== */
+let moActive = false;
+let moState: 'standoff' | 'mine' | 'enemy' = 'standoff';
+let moEnemy: Enemy, moEnemyHpMax = 0, moEnemyHp = 0, moPlayerHp = 0, moPlayerHpMax = 60;
+let moMomentum = 0, moCharge = 0, moGuard = 0, moGroggy = 0, moCombo = 0, moBroken = false;
+let moAttack: EnemyAttack | null = null, moAttackRed = false, moParryOpen = false;
+let moInvulnUntil = 0, moCounterUntil = 0;
+let moSeizeTimer: number | undefined, moWinTimer: number | undefined, moDrainTimer: number | undefined, moGuardShiftTimer: number | undefined, moGroggyTimer: number | undefined;
+let moGuardDirs: string[] = [];
+const MO = () => BALANCE.momentum;
+
+function moBars() {
+  ($('#moEnemyHp')).style.width = Math.max(0, moEnemyHp / moEnemyHpMax * 100) + '%';
+  ($('#moPlayerHp')).style.width = Math.max(0, moPlayerHp / moPlayerHpMax * 100) + '%';
+  ($('#moMomFill')).style.width = Math.max(0, moMomentum / MO().momentumMax * 100) + '%';
+  ($('#moKikiFill')).style.width = Math.max(0, moCharge / MO().chargeMax * 100) + '%';
+}
+function moRenderGuard() {   // 가드 방향 = 적 몸 발광(대치 중에만). 붕괴=금빛.
+  const el = $('#moArt'); el.classList.remove('gR', 'gL', 'gH', 'gD', 'gBroken');
+  if (moBroken) { el.classList.add('gBroken'); return; }
+  if (moState !== 'standoff') return;
+  const g = moGuardDirs;
+  if (g.includes('→')) el.classList.add('gR'); else if (g.includes('←')) el.classList.add('gL');
+  else if (g.includes('↑')) el.classList.add('gH'); else if (g.includes('↓')) el.classList.add('gD');
+}
+function moShiftGuard() {
+  if (!moActive) return;
+  const pats = moEnemy.guardPatterns;
+  moGuardDirs = pats && pats.length ? pats[Math.floor(Math.random() * pats.length)] : [];
+  moRenderGuard();
+  clearTimeout(moGuardShiftTimer);
+  moGuardShiftTimer = setTimeout(moShiftGuard, 2600 + Math.random() * 1800) as unknown as number;
+}
+function enterMomentum() {
+  moEnemy = ENEMIES['swordsman'];
+  moEnemyHpMax = Math.round(moEnemy.hp * MO().enemyHpMul); moEnemyHp = moEnemyHpMax;
+  moPlayerHpMax = playerStats().hpMax; moPlayerHp = moPlayerHpMax;
+  moMomentum = 0; moCharge = 0; moGuard = 0; moGroggy = 0; moCombo = 0; moBroken = false; moParryOpen = false;
+  moInvulnUntil = 0; moCounterUntil = 0; moActive = true;
+  tracker = createTechniqueTracker(currentStyle);
+  $('#momentum').classList.add('on'); $('#app').classList.add('spike-open'); $('#hint').style.display = 'none';
+  $('#diag').style.display = 'none';
+  $('#moEnemyName').textContent = moEnemy.name; moBars();
+  setSceneBg('bg_forest', true);
+  const art = $('#moArt'); art.style.backgroundImage = ''; art.classList.remove('teleY', 'teleR', 'knockout');
+  loadArt(moEnemy.image || 'enemy_swordsman').then(i => { if (i && moActive) art.style.backgroundImage = `url("${artUrl(moEnemy.image || 'enemy_swordsman')}")`; });
+  moSetState('standoff');
+  moShiftGuard();
+  moDrainLoop();
+}
+function exitMomentum() {
+  if (!moActive && !$('#momentum').classList.contains('on')) return;
+  moActive = false; moParryOpen = false;
+  [moSeizeTimer, moWinTimer, moDrainTimer, moGuardShiftTimer, moGroggyTimer].forEach(t => clearTimeout(t));
+  endSlowMo();
+  $('#momentum').classList.remove('on'); $('#app').classList.remove('spike-open', 'moMine', 'moEnemy'); setSceneBg(null);
+}
+function moSetState(s: 'standoff' | 'mine' | 'enemy') {
+  moState = s;
+  const app = $('#app'); app.classList.remove('moMine', 'moEnemy');
+  clearTimeout(moSeizeTimer); clearTimeout(moWinTimer); moParryOpen = false;
+  $('#moArt').classList.remove('teleY', 'teleR');
+  $('#moStateLbl').textContent = s === 'mine' ? '내 공세(攻)' : s === 'enemy' ? '적 공세(守)' : '대치(對峙)';
+  if (s === 'mine') {
+    app.classList.add('moMine'); moMomentum = MO().momentumMax; if (!spikeSlowMo) startSlowMo();
+    $('#moLog').textContent = '내 공세! 마음껏 베어라 — 콤보·검기 충전 (미스 주의)';
+    moRenderGuard();
+  } else if (s === 'enemy') {
+    app.classList.add('moEnemy'); endSlowMo();
+    moTelegraph();
+  } else {   // standoff
+    endSlowMo(); moRenderGuard();
+    $('#moLog').textContent = '대치 — 베어 가드를 깎거나(강공격=관통), 적 반격을 노려라';
+    const d = MO().seizeMinMs + Math.random() * (MO().seizeMaxMs - MO().seizeMinMs);
+    moSeizeTimer = setTimeout(() => { if (moActive && moState === 'standoff') moSetState('enemy'); }, d) as unknown as number;
+  }
+  moBars();
+}
+function moTelegraph() {
+  if (!moActive) return;
+  const a = moEnemy.attacks[Math.floor(Math.random() * moEnemy.attacks.length)];
+  moAttack = a; moAttackRed = a.type === 'red'; moParryOpen = true;
+  const art = $('#moArt'); art.classList.remove('teleY', 'teleR'); art.classList.add(moAttackRed ? 'teleR' : 'teleY');
+  playCue(a.dir); if (soundOn) playTick();
+  $('#moLog').textContent = moAttackRed ? `⚠ ${a.name} — 좌우로 플릭 회피!` : `${a.name} — 쳐내라(패링)!`;
+  moWinTimer = setTimeout(moLands, MO().windowMs) as unknown as number;
+}
+function moLands() {
+  moParryOpen = false; $('#moArt').classList.remove('teleY', 'teleR');
+  const a = moAttack!;
+  if (performance.now() < moInvulnUntil) { moSetState('standoff'); return; }
+  moPlayerHp -= a.damage; moCombo = 0; moBars(); feelShake(FEEL().shakeArtPx); playerHurtFx(); haptic('miss');
+  $('#moLog').textContent = `✗ ${a.name} 피격 — 공격권 뺏김`;
+  if (moPlayerHp <= 0) return moEnd(false);
+  moSetState('standoff');
+}
+function momentumOnStroke(ev: StrokeEvent, heavy: boolean) {
+  if (moParryOpen) { moDefend(ev); pendingFlick = null; return; }        // 적 공세: 방어
+  if (moState === 'mine') { moOffenseHit(ev, heavy); pendingFlick = null; return; }  // 내 공세: 난타
+  moPoke(ev, heavy); pendingFlick = null;                                // 대치: 가드 깎기
+}
+// 대치: 가드 게이지를 깎는다. 열린 방향/강공격이 더 깎음. 부서지면 공격권 획득(내 공세).
+function moPoke(ev: StrokeEvent, heavy: boolean) {
+  if (ev.grade === 'miss') { $('#moLog').textContent = '✗ 헛손질'; return; }
+  const open = !isGuarded(ev.strokeId, moGuardDirs);
+  let chip = heavy ? MO().guardHeavyChip : MO().guardPokeChip;
+  if (!open && !heavy) chip = Math.round(chip * 0.5);   // 막힌 방향 평타는 절반(그래도 전진)
+  moGuard = Math.min(MO().guardMax, moGuard + chip);
+  const nm = STROKE_TEMPLATES[ev.strokeId]?.name ?? ev.strokeId;
+  $('#moLog').textContent = `${heavy ? '강공격' : '평타'} ${nm} — 가드 ${Math.round(moGuard)}${!open && !heavy ? ' (막힘)' : ''}`;
+  const el = $('#moArt'); el.classList.remove('blocked'); void el.offsetWidth; el.classList.add('blocked');
+  feelShake(Math.round(FEEL().shakeHitPx * (heavy ? 0.9 : 0.5))); playBlock(); moPopup(Math.round(chip), 'guard');
+  if (moGuard >= MO().guardMax) { moGuard = 0; $('#moLog').textContent = '가드 브레이크! 공격권 획득 — 몰아쳐라'; moSetState('mine'); }
+}
+// 내 공세: 모든 획이 꽂힌다. 데미지·콤보·검기 충전·공격권 유지. 미스=공격권 급감.
+function moOffenseHit(ev: StrokeEvent, heavy: boolean) {
+  if (ev.grade === 'miss') { moMomentum = Math.max(0, moMomentum - MO().missDrain); moBars(); $('#moLog').textContent = '✗ 헛손질 — 공격권 급감!'; if (moMomentum <= 0) moSetState('standoff'); return; }
+  const tech = tracker.feed(ev); updateTech(tech);
+  if (moCharge >= MO().chargeMax) return moKiki();   // 검기 충전 완료 → 관통 참격
+  let base = (tech && tech.type === 'success') ? tech.damage : freeAttackDamage(ev.grade);
+  base += playerStats().power; if (heavy) base = Math.round(base * 1.35);
+  if (performance.now() < moCounterUntil) base = Math.round(base * MO().counterBonusMul);
+  let m = comboMultiplier(moCombo + 1, BALANCE.spike.judge.comboStep, BALANCE.spike.judge.comboMax);
+  if (moBroken) m *= MO().groggyDmgMul;
+  const dmg = Math.max(1, Math.round(base * m));
+  moEnemyHp -= dmg; moCombo++; moCharge = Math.min(MO().chargeMax, moCharge + MO().chargePerHit);
+  moMomentum = Math.min(MO().momentumMax, moMomentum + MO().momentumPerHit);
+  moAddGroggy(MO().groggyPerHit); moBars();
+  const nm = (tech && tech.type === 'success') ? tech.name : (STROKE_TEMPLATES[ev.strokeId]?.name ?? ev.strokeId);
+  $('#moLog').textContent = `⚔ ${nm} · 적 −${dmg}${moCombo >= 2 ? ` ×${moCombo}` : ''}${moBroken ? ' 붕괴!' : ''}`;
+  feelHitMo(tech ? 'art' : ev.grade, !!tech); moPopup(dmg, tech ? 'art' : ev.grade);
+  if (moEnemyHp <= 0) return moEnd(true);
+}
+function moKiki() {
+  moCharge = 0;
+  const dmg = Math.max(1, Math.round((MO().kikiDamage + playerStats().power) * (moBroken ? MO().groggyDmgMul : 1)));
+  moEnemyHp -= dmg; moBars();
+  $('#moLog').textContent = `✧ 검기(劍氣)! 화면 관통 — 적 −${dmg}`;
+  moSlash(); feelShake(FEEL().shakeArtPx); playHit(true); moPopup(dmg, 'art');
+  if (moEnemyHp <= 0) return moEnd(true);
+}
+// 적 공세 방어: 노랑=패링(카운터 획), 빨강=플릭 회피. 성공=공격권 강탈.
+function moDefend(ev: StrokeEvent) {
+  const a = moAttack!; clearTimeout(moWinTimer); moParryOpen = false; $('#moArt').classList.remove('teleY', 'teleR');
+  if (moAttackRed) {
+    if (pendingFlick) { moInvulnUntil = performance.now() + BALANCE.spike.judge.dodgeInvulnMs; moCounterUntil = performance.now() + MO().counterBonusMs;
+      $('#moLog').textContent = '↯ 회피! 공격권 강탈 — 반격 보너스'; const app = $('#app'); app.classList.remove('dodgeL', 'dodgeR'); void app.offsetWidth; app.classList.add(pendingFlick === 'R' ? 'dodgeR' : 'dodgeL'); setTimeout(() => app.classList.remove('dodgeL', 'dodgeR'), 380); haptic('good'); moSetState('mine'); return; }
+    $('#moLog').textContent = `✗ 못 피했다 — ${a.name}`; moTakeHit(a); return;
+  }
+  const ok = ev.strokeId === a.counter && (ev.grade === 'good' || ev.grade === 'great' || ev.grade === 'perfect');
+  if (ok) { moAddGroggy(MO().groggyPerParry); $('#moLog').textContent = `⚔ 패링! 공격권 강탈 — 그로기↑`; feelHitMo('art', true); haptic('perfect'); moSetState('mine'); }
+  else { $('#moLog').textContent = `✗ 헛쳤다 — ${a.name} 피격`; moTakeHit(a); }
+}
+function moTakeHit(a: EnemyAttack) {
+  if (performance.now() < moInvulnUntil) { moSetState('standoff'); return; }
+  moPlayerHp -= a.damage; moCombo = 0; moBars(); feelShake(FEEL().shakeArtPx); playerHurtFx(); haptic('miss');
+  if (moPlayerHp <= 0) return moEnd(false);
+  moSetState('standoff');
+}
+function moAddGroggy(n: number) {
+  if (moBroken) return;
+  moGroggy = Math.min(MO().groggyMax, moGroggy + n);
+  if (moGroggy >= MO().groggyMax) { moBroken = true; moRenderGuard(); if (soundOn) playGroggySignal(); $('#moLog').textContent = '★ 자세 붕괴 — 난무!'; clearTimeout(moGroggyTimer); moGroggyTimer = setTimeout(() => { moBroken = false; moGroggy = 0; moRenderGuard(); }, MO().groggyWindowMs) as unknown as number; }
+}
+function moDrainLoop() {
+  clearTimeout(moDrainTimer);
+  moDrainTimer = setTimeout(() => {
+    if (moActive && moState === 'mine') { moMomentum = Math.max(0, moMomentum - MO().momentumDrainPerSec); moBars(); if (moMomentum <= 0) moSetState('standoff'); }
+    if (moActive) moDrainLoop();
+  }, 1000) as unknown as number;
+}
+function moEnd(win: boolean) {
+  if (!moActive) return; moActive = false; moParryOpen = false;
+  [moSeizeTimer, moWinTimer, moDrainTimer, moGuardShiftTimer, moGroggyTimer].forEach(t => clearTimeout(t));
+  if (win) { $('#moLog').textContent = '⚑ 낭인 검객을 베었다!'; moFinishFx(); }
+  else { endSlowMo(); $('#moLog').textContent = '쓰러졌다…'; setTimeout(exitMomentum, 1700); }
+}
+function moFinishFx() {
+  const art = $('#moArt'); feelShake(Math.round(FEEL().shakeArtPx * 1.6)); moSlash(); playHit(true); startSlowMo();
+  setTimeout(() => art.classList.add('knockout'), 130);
+  setTimeout(() => { $('#moFinish').classList.add('on'); playHit(true); haptic('perfect'); }, 470);
+  setTimeout(() => { $('#moFinish').classList.remove('on'); art.classList.remove('knockout'); endSlowMo(); }, 1700);
+  setTimeout(exitMomentum, 2300);
+}
+function moSlash() { const fx = $('#moSlashFx'); fx.classList.remove('play'); void fx.offsetWidth; fx.classList.add('play'); setTimeout(() => fx.classList.remove('play'), 380); }
+function feelHitMo(grade: string, isArt: boolean) {
+  const art = $('#moArt'), sp = $('#moSplash');
+  art.style.setProperty('--flash-ms', FEEL().flashMs + 'ms');
+  art.classList.remove('hit'); sp.classList.remove('play'); void art.offsetWidth; art.classList.add('hit'); sp.classList.add('play');
+  feelShake(isArt ? FEEL().shakeArtPx : FEEL().shakeHitPx); playHit(isArt);
+}
+function moPopup(n: number, grade: string) {
+  const box = $('#moPopups'); const el = document.createElement('div'); el.className = 'dmgPop';
+  const col: Record<string, string> = { good: 'var(--bone)', great: 'var(--gold)', perfect: 'var(--gold)', art: '#ff6a3d', guard: '#8fb0d0' };
+  el.style.color = col[grade] || 'var(--bone)'; el.style.setProperty('--pop-ms', FEEL().popupMs + 'ms');
+  el.textContent = grade === 'guard' ? `가드 ${n}` : (grade === 'art' ? `${n}!` : String(n));
+  const ar = $('#moArt').getBoundingClientRect();
+  el.style.left = (ar.left + ar.width * (0.35 + Math.random() * 0.3)) + 'px';
+  el.style.top = (ar.top + ar.height * (0.3 + Math.random() * 0.2)) + 'px';
+  box.appendChild(el); setTimeout(() => el.remove(), FEEL().popupMs + 60);
+}
+$('#moExit').addEventListener('click', exitMomentum);
 
 /* ---- T1-08 승급 시험(昇級) 씬 (DOM). 마나 각성: 4획 연속(≤2s)·평균70+·미스 즉시중단 ---- */
 const CUR_TRIAL = 'mana_awakening';
@@ -1073,6 +1279,8 @@ function endStroke() {
   lastOverlay = { user: resample(pts, 40), ideal: idealForDisplay(res.strokeId!, pts), grade: res.grade! };
   overlayFade = 1;
   pendingFlick = computeFlick(pts);   // 빠른 좌/우 플릭(스텝 회피용) 판정 — 빨강 예고에서만 사용
+  const dur = pts.length >= 2 ? (pts[pts.length - 1].t ?? 0) - (pts[0].t ?? 0) : 0;
+  pendingHeavy = dur >= BALANCE.momentum.chargeHoldMs;   // 느리게 그은(차지) 획 = 강공격
   emitStroke({ strokeId: res.strokeId!, accuracy: res.accuracy!, grade: res.grade!, inputMode: 'gesture', timestamp: performance.now(), breakdown: res.breakdown });
 }
 // 빠른 좌/우 플릭 감지: 짧고 빠른 수평 스와이프 = 스텝 회피 입력. balance.spike.judge.
@@ -1126,7 +1334,7 @@ function resolveCommand() {
   lastOverlay = { user: null, ideal, grade: rj.grade };
   overlayFade = 1;
   const timing01 = Math.max(0, 1 - (rj.maxErr || 0) / BALANCE.rhythm.windows.bad);
-  pendingFlick = null;   // 검결(커맨드)은 플릭이 아님
+  pendingFlick = null; pendingHeavy = false;   // 검결(커맨드)은 플릭/강공격이 아님
   emitStroke({
     strokeId: rec.strokeId, accuracy: rj.accuracy, grade: rj.grade, inputMode: 'command', timestamp: performance.now(),
     breakdown: { direction: 1, straight: 1, speed: timing01, completion: 1 }, powerBonus: rj.powerBonus,
@@ -1258,6 +1466,7 @@ function runSelfTest() {
   const ts = artTuneState();
   const curOverlay = ts.curCombat ? ts.overlayC : ts.overlayN;
   $('#diag').innerHTML = `<h4>자가진단 ${passed}/${T.length} 통과</h4>` +
+    `<div class="devrow"><button id="devMomentum">[개발] ▶ 재설계 스파이크1 — 공격권(낭인검객)</button></div>` +
     `<div class="devrow"><button id="devSpike">[개발] ⚔ 스파이크 전투(늑대) 시작</button></div>` +
     `<div class="devrow"><button id="devStyle">[개발] 유파 전환 · 현재: ${currentStyle.name}</button></div>` +
     `<div class="devtune">
@@ -1276,6 +1485,7 @@ function runSelfTest() {
     T.map(t => `<div class="${t.ok ? 'pass' : 'fail'}">${t.ok ? '✓' : '✗'} ${t.name}${t.extra != null ? ' · ' + t.extra : ''}</div>`).join('');
   const ds = document.querySelector('#devStyle'); if (ds) ds.addEventListener('click', devToggleStyle);
   const dsp = document.querySelector('#devSpike'); if (dsp) dsp.addEventListener('click', () => { $('#diag').style.display = 'none'; ($('#btnDiag')).classList.remove('active'); enterSpike(); });
+  const dmo = document.querySelector('#devMomentum'); if (dmo) dmo.addEventListener('click', () => { $('#diag').style.display = 'none'; ($('#btnDiag')).classList.remove('active'); enterMomentum(); });
   const sh = document.querySelector('#shSlide') as HTMLInputElement | null;
   const hs = document.querySelector('#hsSlide') as HTMLInputElement | null;
   if (sh) sh.addEventListener('input', () => { feelShakeMul = parseFloat(sh.value); const e = document.querySelector('#shVal'); if (e) e.textContent = feelShakeMul.toFixed(2); });

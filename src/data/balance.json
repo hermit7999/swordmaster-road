@@ -67,6 +67,16 @@
       "pressureMax": 100, "pressurePerAttack": 22, "pressureDecayPerSec": 30, "pressureFreqReduce": 0.5
     }
   },
+  "momentum": {
+    "enemyHpMul": 1.0, "playerHp": 60,
+    "momentumMax": 100, "momentumDrainPerSec": 20, "momentumPerHit": 24, "missDrain": 40,
+    "chargeMax": 100, "chargePerHit": 16, "kikiCost": 60, "kikiDamage": 30,
+    "guardMax": 100, "guardPokeChip": 15, "guardHeavyChip": 36,
+    "chargeHoldMs": 460,
+    "seizeMinMs": 2600, "seizeMaxMs": 4400, "windowMs": 1050,
+    "groggyMax": 100, "groggyPerParry": 44, "groggyPerHit": 9, "groggyWindowMs": 3200, "groggyDmgMul": 1.7,
+    "counterBonusMs": 1300, "counterBonusMul": 1.5
+  },
   "difficultyEase": { "standard": 1.0, "lenient": 1.25 },
   "dialogueSpeed": { "slow": 1.5, "normal": 1.0, "fast": 0.55 },
   "padScale": { "small": 0.82, "normal": 1.0, "large": 1.22 },

@@ -71,6 +71,16 @@ export interface Balance {
       pressureMax: number; pressurePerAttack: number; pressureDecayPerSec: number; pressureFreqReduce: number;
     };
   };
+  momentum: {
+    enemyHpMul: number; playerHp: number;
+    momentumMax: number; momentumDrainPerSec: number; momentumPerHit: number; missDrain: number;
+    chargeMax: number; chargePerHit: number; kikiCost: number; kikiDamage: number;
+    guardMax: number; guardPokeChip: number; guardHeavyChip: number;
+    chargeHoldMs: number;
+    seizeMinMs: number; seizeMaxMs: number; windowMs: number;
+    groggyMax: number; groggyPerParry: number; groggyPerHit: number; groggyWindowMs: number; groggyDmgMul: number;
+    counterBonusMs: number; counterBonusMul: number;
+  };
   difficultyEase: Record<string, number>;
   dialogueSpeed: Record<string, number>;
   padScale: Record<string, number>;
