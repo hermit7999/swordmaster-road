@@ -59,12 +59,12 @@
     "slowMo": { "windowMs": 1900, "scale": 0.4 },
     "judge": {
       "guardShiftMinMs": 2400, "guardShiftMaxMs": 4200,
-      "blockedStunMs": 650, "blockedComboReset": true,
       "comboStep": 0.12, "comboMax": 2.2,
-      "groggyMax": 100, "groggyPerHit": 12, "groggyPerParry": 34, "groggyPerDodge": 16,
-      "groggyWindowMs": 3000, "groggyDamageMul": 1.6, "groggyDecayPerSec": 6,
+      "groggyMax": 100, "groggyPerHit": 11, "groggyPerBlock": 9, "groggyPerParry": 30, "groggyPerDodge": 15,
+      "groggyWindowMs": 3000, "groggyDamageMul": 1.6, "groggyDecayPerSec": 5,
       "flickMaxMs": 220, "flickMinLenRatio": 0.06, "flickMaxLenRatio": 0.4,
-      "dodgeInvulnMs": 500
+      "dodgeInvulnMs": 500,
+      "pressureMax": 100, "pressurePerAttack": 22, "pressureDecayPerSec": 30, "pressureFreqReduce": 0.5
     }
   },
   "difficultyEase": { "standard": 1.0, "lenient": 1.25 },

@@ -63,12 +63,12 @@ export interface Balance {
     slowMo: { windowMs: number; scale: number };
     judge: {
       guardShiftMinMs: number; guardShiftMaxMs: number;
-      blockedStunMs: number; blockedComboReset: boolean;
       comboStep: number; comboMax: number;
-      groggyMax: number; groggyPerHit: number; groggyPerParry: number; groggyPerDodge: number;
+      groggyMax: number; groggyPerHit: number; groggyPerBlock: number; groggyPerParry: number; groggyPerDodge: number;
       groggyWindowMs: number; groggyDamageMul: number; groggyDecayPerSec: number;
       flickMaxMs: number; flickMinLenRatio: number; flickMaxLenRatio: number;
       dodgeInvulnMs: number;
+      pressureMax: number; pressurePerAttack: number; pressureDecayPerSec: number; pressureFreqReduce: number;
     };
   };
   difficultyEase: Record<string, number>;
