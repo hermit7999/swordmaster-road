@@ -56,7 +56,16 @@
       "elite":     { "hpMul": 1.0, "atkMinMs": 3000, "atkMaxMs": 5500, "windowMs": 1050 },
       "boss":      { "hpMul": 1.25, "atkMinMs": 2600, "atkMaxMs": 5000, "windowMs": 1000 }
     },
-    "slowMo": { "windowMs": 1900, "scale": 0.4 }
+    "slowMo": { "windowMs": 1900, "scale": 0.4 },
+    "judge": {
+      "guardShiftMinMs": 2400, "guardShiftMaxMs": 4200,
+      "blockedStunMs": 650, "blockedComboReset": true,
+      "comboStep": 0.12, "comboMax": 2.2,
+      "groggyMax": 100, "groggyPerHit": 12, "groggyPerParry": 34, "groggyPerDodge": 16,
+      "groggyWindowMs": 3000, "groggyDamageMul": 1.6, "groggyDecayPerSec": 6,
+      "flickMaxMs": 220, "flickMinLenRatio": 0.06, "flickMaxLenRatio": 0.4,
+      "dodgeInvulnMs": 500
+    }
   },
   "difficultyEase": { "standard": 1.0, "lenient": 1.25 },
   "dialogueSpeed": { "slow": 1.5, "normal": 1.0, "fast": 0.55 },

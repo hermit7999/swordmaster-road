@@ -3,50 +3,55 @@
     "name": "고블린 척후",
     "hp": 90,
     "image": "enemy_goblin",
+    "guardPatterns": [["→", "↗", "↘"], ["←", "↖", "↙"]],
     "attacks": [
-      { "name": "횡참",   "dir": "→", "counter": "h_rl",   "counterName": "횡베기(우→좌)", "damage": 12 },
-      { "name": "역횡참", "dir": "←", "counter": "h_lr",   "counterName": "횡베기(좌→우)", "damage": 12 },
-      { "name": "내려베기", "dir": "↓", "counter": "v_up",   "counterName": "올려베기",       "damage": 12 },
-      { "name": "돌진",   "dir": "↑", "counter": "v_down", "counterName": "내려찍기",       "damage": 15 }
+      { "name": "횡참",   "dir": "→", "counter": "h_rl",   "counterName": "횡베기(우→좌)", "damage": 12, "type": "yellow" },
+      { "name": "역횡참", "dir": "←", "counter": "h_lr",   "counterName": "횡베기(좌→우)", "damage": 12, "type": "yellow" },
+      { "name": "내려베기", "dir": "↓", "counter": "v_up",   "counterName": "올려베기",       "damage": 12, "type": "yellow" },
+      { "name": "돌진",   "dir": "↑", "counter": "v_down", "counterName": "내려찍기",       "damage": 15, "type": "red" }
     ]
   },
   "wolf": {
     "name": "들늑대",
     "hp": 66,
     "image": "enemy_wolf",
+    "guardPatterns": [["↑", "↖", "↗"], ["↓", "↙", "↘"]],
     "attacks": [
-      { "name": "물어뜯기", "dir": "→", "counter": "h_rl",   "counterName": "횡베기(우→좌)", "damage": 11 },
-      { "name": "도약",     "dir": "↑", "counter": "v_down", "counterName": "내려찍기",       "damage": 14 }
+      { "name": "물어뜯기", "dir": "→", "counter": "h_rl",   "counterName": "횡베기(우→좌)", "damage": 11, "type": "yellow" },
+      { "name": "도약",     "dir": "↑", "counter": "v_down", "counterName": "내려찍기",       "damage": 14, "type": "red" }
     ]
   },
   "insect": {
     "name": "독충 무리",
     "hp": 54,
     "image": "enemy_insect",
+    "guardPatterns": [["→", "↗", "↘"], ["←", "↖", "↙"]],
     "attacks": [
-      { "name": "독침 쇄도", "dir": "←", "counter": "h_lr", "counterName": "횡베기(좌→우)", "damage": 10 },
-      { "name": "낮게 파고듦", "dir": "↓", "counter": "v_up", "counterName": "올려베기",     "damage": 10 }
+      { "name": "독침 쇄도", "dir": "←", "counter": "h_lr", "counterName": "횡베기(좌→우)", "damage": 10, "type": "yellow" },
+      { "name": "낮게 파고듦", "dir": "↓", "counter": "v_up", "counterName": "올려베기",     "damage": 10, "type": "red" }
     ]
   },
   "bandit": {
     "name": "떠돌이 산적",
     "hp": 88,
     "image": "enemy_bandit",
+    "guardPatterns": [["→", "↗", "↘"], ["←", "↖", "↙"], ["↑", "↖", "↗"]],
     "attacks": [
-      { "name": "몽둥이 내려침", "dir": "↓", "counter": "v_up",   "counterName": "올려베기",       "damage": 13 },
-      { "name": "발길질",       "dir": "→", "counter": "h_rl",   "counterName": "횡베기(우→좌)", "damage": 11 },
-      { "name": "달려듦",       "dir": "↑", "counter": "v_down", "counterName": "내려찍기",       "damage": 14 }
+      { "name": "몽둥이 내려침", "dir": "↓", "counter": "v_up",   "counterName": "올려베기",       "damage": 13, "type": "yellow" },
+      { "name": "발길질",       "dir": "→", "counter": "h_rl",   "counterName": "횡베기(우→좌)", "damage": 11, "type": "red" },
+      { "name": "달려듦",       "dir": "↑", "counter": "v_down", "counterName": "내려찍기",       "damage": 14, "type": "red" }
     ]
   },
   "swordsman": {
     "name": "낭인 검객",
     "hp": 104,
     "image": "enemy_swordsman",
+    "guardPatterns": [["→", "↗", "↘"], ["←", "↖", "↙"], ["↑", "↖", "↗"], ["↓", "↙", "↘"]],
     "attacks": [
-      { "name": "발도(拔刀)", "dir": "→", "counter": "h_rl",   "counterName": "횡베기(우→좌)", "damage": 13 },
-      { "name": "역수베기",   "dir": "←", "counter": "h_lr",   "counterName": "횡베기(좌→우)", "damage": 13 },
-      { "name": "올려치기",   "dir": "↑", "counter": "v_down", "counterName": "내려찍기",       "damage": 15 },
-      { "name": "내려베기",   "dir": "↓", "counter": "v_up",   "counterName": "올려베기",       "damage": 15 }
+      { "name": "발도(拔刀)", "dir": "→", "counter": "h_rl",   "counterName": "횡베기(우→좌)", "damage": 13, "type": "yellow" },
+      { "name": "역수베기",   "dir": "←", "counter": "h_lr",   "counterName": "횡베기(좌→우)", "damage": 13, "type": "yellow" },
+      { "name": "올려치기",   "dir": "↑", "counter": "v_down", "counterName": "내려찍기",       "damage": 15, "type": "red" },
+      { "name": "내려베기",   "dir": "↓", "counter": "v_up",   "counterName": "올려베기",       "damage": 15, "type": "yellow" }
     ]
   },
   "ilseomgwi": {
@@ -54,11 +59,12 @@
     "hp": 128,
     "image": "boss_stage1",
     "signature": "v_up",
-    "signatureWeight": 0.62,
+    "signatureWeight": 0.5,
+    "guardPatterns": [["→", "↗", "↘"], ["←", "↖", "↙"], ["↑", "↖", "↗"], ["↓", "↙", "↘"]],
     "attacks": [
-      { "name": "일섬(一閃) 내려긋기", "dir": "↓", "counter": "v_up",   "counterName": "올려베기",       "damage": 20, "signature": true },
-      { "name": "허초 횡참",           "dir": "→", "counter": "h_rl",   "counterName": "횡베기(우→좌)", "damage": 12 },
-      { "name": "허초 돌진",           "dir": "↑", "counter": "v_down", "counterName": "내려찍기",       "damage": 12 }
+      { "name": "일섬(一閃) 내려긋기", "dir": "↓", "counter": "v_up",   "counterName": "올려베기",       "damage": 20, "type": "yellow", "signature": true },
+      { "name": "허초 횡참",           "dir": "→", "counter": "h_rl",   "counterName": "횡베기(우→좌)", "damage": 12, "type": "red" },
+      { "name": "허초 돌진",           "dir": "↑", "counter": "v_down", "counterName": "내려찍기",       "damage": 12, "type": "red" }
     ]
   }
 }

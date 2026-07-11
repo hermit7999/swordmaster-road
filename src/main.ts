@@ -5,6 +5,7 @@ import {
   CONSUMABLES, SWORDS, ITEMS, STORY,
   judgeStroke, recognizeCommand, judgeRhythm, gradeOf, createTechniqueTracker,
   bbox, resample, levelFromXp, xpToNext, derivedStats, freeAttackDamage,
+  isGuarded, comboMultiplier,
 } from './engine';
 import type { Dialogue, DlgLine } from './engine';
 import type { Pt, Dir, Grade, Style, StrokeEvent, CommandInput, Enemy, EnemyAttack } from './engine';
@@ -319,8 +320,14 @@ let spAttack: EnemyAttack | null = null, spAttackIsSig = false;
 let spAtkTimer: number | undefined, spWinTimer: number | undefined, spStaggerTimer: number | undefined;
 let spikeResult: 'win' | 'lose' | 'quit' = 'quit';
 let feelShakeMul = 1, feelHitstopMul = 1;   // 자가진단 슬라이더 튜닝
+// 판정 코어(자세/콤보/그로기/회피)
+let pendingFlick: 'L' | 'R' | null = null;
+let spGuard: string[] = [], spGuardTimer: number | undefined;
+let spCombo = 0, spGroggy = 0, spGroggyBroken = false, spGroggyTimer: number | undefined, spGroggyDecayTimer: number | undefined;
+let spInvulnUntil = 0, spPlayerStunUntil = 0;
 const SP = () => BALANCE.spike;
 const SPK = () => SP().kinds[spikeKind] ?? SP().kinds.elite;
+const JD = () => BALANCE.spike.judge;
 const FEEL = () => BALANCE.feel;
 type SpArt = Extract<NonNullable<TechRes>, { type: 'success' }>;
 
@@ -328,31 +335,57 @@ function spBars() {
   ($('#spEnemyHp')).style.width = Math.max(0, spEnemyHp / spEnemyHpMax * 100) + '%';
   ($('#spPlayerHp')).style.width = Math.max(0, spPlayerHp / spPlayerHpMax * 100) + '%';
   ($('#spMana')).style.width = Math.max(0, spMana / SP().manaMax * 100) + '%';
+  const g = document.querySelector('#spGroggyFill') as HTMLElement | null;
+  if (g) g.style.width = Math.max(0, Math.min(100, spGroggy / JD().groggyMax * 100)) + '%';
+}
+// 자세(가드) 표시: 막힌 8방향을 나침반에 붉게. 그로기 붕괴 중엔 전방향 오픈.
+const OCTANTS = ['↖', '↑', '↗', '←', '→', '↙', '↓', '↘'];
+function renderGuard() {
+  const box = document.querySelector('#spGuard'); if (!box) return;
+  const broken = spGroggyBroken;
+  box.classList.toggle('broken', broken);
+  box.innerHTML = OCTANTS.map(o => {
+    const blocked = !broken && spGuard.includes(o);
+    return `<span class="gdir ${blocked ? 'blk' : 'opn'}">${o}</span>`;
+  }).join('');
+}
+function shiftGuard() {
+  if (!spikeActive) return;
+  const pats = spEnemy.guardPatterns;
+  if (pats && pats.length) spGuard = pats[Math.floor(Math.random() * pats.length)];
+  else spGuard = [];
+  renderGuard();
+  const d = JD().guardShiftMinMs + Math.random() * (JD().guardShiftMaxMs - JD().guardShiftMinMs);
+  clearTimeout(spGuardTimer); spGuardTimer = setTimeout(shiftGuard, d) as unknown as number;
 }
 function enterSpike(enemyId = 'wolf', kind: 'encounter' | 'elite' | 'boss' = 'elite') {
   spEnemyId = ENEMIES[enemyId] ? enemyId : 'wolf'; spEnemy = ENEMIES[spEnemyId]; spikeKind = kind;
   spEnemyHpMax = Math.max(1, Math.round(spEnemy.hp * SPK().hpMul)); spEnemyHp = spEnemyHpMax;
   spPlayerHpMax = playerStats().hpMax; spPlayerHp = spPlayerHpMax; spMana = SP().startMana;
   spikeActive = true; spikeParryOpen = false; spikeStaggered = false; spikeSlowMo = false; spikeResult = 'quit';
+  spCombo = 0; spGroggy = 0; spGroggyBroken = false; spInvulnUntil = 0; spPlayerStunUntil = 0; pendingFlick = null;
   tracker = createTechniqueTracker(currentStyle);   // 콤보 초기화
   $('#spike').classList.add('on'); $('#app').classList.add('spike-open'); $('#hint').style.display = 'none';
   $('#diag').style.display = 'none';
-  $('#spEnemyName').textContent = spEnemy.name; spBars(); renderSpItems();
-  $('#spLog').textContent = kind === 'boss' ? '결전(決戰) — 베고, 적이 자세를 낮추면 그 방향을 쳐내라'
-    : kind === 'elite' ? '정예전(精銳) — 자유롭게 베고, 예고 방향을 쳐내라'
-    : '조우(遭遇) — 검을 그어 베어라. 덤비면 그 방향을 쳐내라';
-  $('#spTele').classList.remove('on', 'sig'); $('#spTele').textContent = '';
+  $('#spEnemyName').textContent = spEnemy.name; spBars(); renderSpItems(); renderCombo();
+  $('#spLog').textContent = kind === 'boss' ? '결전(決戰) — 열린 방향으로 베고, 노란 예고는 쳐내고 빨간 예고는 좌우로 플릭 회피'
+    : kind === 'elite' ? '정예전(精銳) — 적 자세의 열린 방향을 베라. 노랑=쳐내기 / 빨강=플릭 회피'
+    : '조우(遭遇) — 열린 방향으로 그어 베어라. 예고 뜨면 쳐내거나(노랑) 플릭 회피(빨강)';
+  $('#spTele').classList.remove('on', 'sig', 'red'); $('#spTele').textContent = '';
   setSceneBg(kind === 'boss' ? 'bg_bossgate' : 'bg_forest', true);
   const art = $('#spEnemyArt'); art.style.backgroundImage = ''; art.classList.remove('stagger', 'hit');
   const img = spEnemy.image || 'enemy_wolf';
   loadArt(img).then(i => { if (i && spikeActive) art.style.backgroundImage = `url("${artUrl(img)}")`; });
+  shiftGuard();            // 자세 시작 + 주기적 변경
+  spGroggyDecay();         // 그로기 자연 감소 루프
   scheduleEnemy();
 }
 function exitSpike() {
   if (!spikeActive && !$('#spike').classList.contains('on')) return;
   spikeActive = false; spikeParryOpen = false; endSlowMo();
   clearTimeout(spAtkTimer); clearTimeout(spWinTimer); clearTimeout(spStaggerTimer);
-  $('#spike').classList.remove('on'); $('#app').classList.remove('spike-open'); setSceneBg(null);
+  clearTimeout(spGuardTimer); clearTimeout(spGroggyTimer); clearTimeout(spGroggyDecayTimer);
+  $('#spike').classList.remove('on', 'groggy'); $('#app').classList.remove('spike-open'); setSceneBg(null);
   runAfterScene(spikeResult === 'win');   // 지도 복귀 — afterScene이 spikeResult(win/lose/quit)로 분기
 }
 function scheduleEnemy() {
@@ -375,42 +408,62 @@ function enemyTelegraph() {
   if (spikeStaggered) { scheduleEnemy(); return; }
   const a = pickEnemyAttack(); spAttack = a;
   spAttackIsSig = !!(a.signature && spikeKind === 'boss' && spEnemy.signature);
+  const red = a.type === 'red';
   playCue(a.dir); if (soundOn) playTick();
   spikeParryOpen = true;
-  if (spAttackIsSig) {   // 보스 필살(一閃): 그 순간만 세계가 느려진다
+  $('#spTele').classList.remove('sig', 'red');
+  if (spAttackIsSig) {   // 보스 필살(一閃): 그 순간만 세계가 느려진다 (노란 예고=쳐내기)
     startSlowMo();
     $('#spTele').textContent = `⚡ 一閃 — ${a.dir} 쳐내라! (${a.counterName})`;
     $('#spTele').classList.add('on', 'sig');
     spWinTimer = setTimeout(enemyLands, SP().slowMo.windowMs) as unknown as number;
-  } else {
+  } else if (red) {      // 빨강 예고: 방어 불가 — 좌우 플릭 회피만
+    $('#spTele').textContent = `⚠ ${a.dir} ${a.name} — 좌우로 플릭 회피!`;
+    $('#spTele').classList.add('on', 'red');
+    spWinTimer = setTimeout(enemyLands, SPK().windowMs) as unknown as number;
+  } else {               // 노랑 예고: 쳐내기(카운터 획)
     $('#spTele').textContent = `${a.dir}  ${a.name} — 쳐내라! (${a.counterName})`;
-    $('#spTele').classList.add('on'); $('#spTele').classList.remove('sig');
+    $('#spTele').classList.add('on');
     spWinTimer = setTimeout(enemyLands, SPK().windowMs) as unknown as number;
   }
 }
-function enemyLands() {
-  spikeParryOpen = false; endSlowMo(); $('#spTele').classList.remove('on', 'sig');
-  const a = spAttack!; spPlayerHp -= a.damage; spBars();
-  $('#spLog').textContent = `✗ ${a.name}에 당했다 — HP −${a.damage}`;
-  feelShake(FEEL().shakeArtPx); haptic('miss');
-  if (spPlayerHp <= 0) return spEnd(false);
-  scheduleEnemy();
+function enemyLands() {   // 창 만료 = 방어 실패
+  spikeParryOpen = false; endSlowMo(); $('#spTele').classList.remove('on', 'sig', 'red');
+  const a = spAttack!; $('#spLog').textContent = `✗ ${a.name}에 당했다`;
+  spTakeHit(a);
 }
-function spTryParry(ev: StrokeEvent) {
+// 방어: 노랑=쳐내기(카운터 획), 빨강=좌우 플릭 회피. 성공 시 그로기↑·반격 기회.
+function spDefend(ev: StrokeEvent) {
   const a = spAttack!;
+  clearTimeout(spWinTimer); spikeParryOpen = false; endSlowMo(); $('#spTele').classList.remove('on', 'sig', 'red');
+  if (a.type === 'red') {
+    if (pendingFlick) return spDodge();
+    $('#spLog').textContent = `✗ 막을 수 없다 — ${a.name}`; spTakeHit(a); return;
+  }
   const ok = ev.strokeId === a.counter && (ev.grade === 'good' || ev.grade === 'great' || ev.grade === 'perfect');
-  clearTimeout(spWinTimer); spikeParryOpen = false; endSlowMo(); $('#spTele').classList.remove('on', 'sig');
   if (ok) {
-    spMana = Math.min(SP().manaMax, spMana + SP().parryManaGain); spBars();
-    $('#spLog').textContent = `⚔ 쳐냈다! ${a.counterName}(${ev.grade}) — 적 경직! 지금 베어라` + (spAttackIsSig ? ' (一閃 간파!)' : '');
+    spMana = Math.min(SP().manaMax, spMana + SP().parryManaGain); addGroggy(JD().groggyPerParry); spBars();
+    $('#spLog').textContent = `⚔ 쳐냈다! ${a.counterName}(${ev.grade}) — 그로기↑ · 지금 베어라` + (spAttackIsSig ? ' (一閃 간파!)' : '');
     spStagger(); feelHit(spAttackIsSig ? 'art' : 'great', spAttackIsSig);
   } else {
-    spPlayerHp -= a.damage; spBars();
-    $('#spLog').textContent = `✗ 헛쳤다 — ${a.name} 피격 HP −${a.damage}`;
-    feelShake(FEEL().shakeArtPx); haptic('miss');
-    if (spPlayerHp <= 0) return spEnd(false);
-    scheduleEnemy();
+    $('#spLog').textContent = `✗ 헛쳤다 — ${a.name} 피격`; spTakeHit(a);
   }
+}
+function spDodge() {
+  spInvulnUntil = performance.now() + JD().dodgeInvulnMs;
+  addGroggy(JD().groggyPerDodge); spBars();
+  $('#spLog').textContent = '↯ 스텝 회피! 무적 순간 — 반격 기회';
+  const app = $('#app'); app.classList.remove('dodgeL', 'dodgeR'); void app.offsetWidth;
+  app.classList.add(pendingFlick === 'R' ? 'dodgeR' : 'dodgeL');
+  setTimeout(() => app.classList.remove('dodgeL', 'dodgeR'), 380);
+  haptic('good'); scheduleEnemy();
+}
+function spTakeHit(a: EnemyAttack) {
+  if (performance.now() < spInvulnUntil) { $('#spLog').textContent = '↯ 무적 — 무피해'; scheduleEnemy(); return; }
+  spPlayerHp -= a.damage; spCombo = 0; renderCombo(); spBars();
+  feelShake(FEEL().shakeArtPx); playerHurtFx(); haptic('miss');
+  if (spPlayerHp <= 0) return spEnd(false);
+  scheduleEnemy();
 }
 function spStagger() {
   spikeStaggered = true;
@@ -419,28 +472,70 @@ function spStagger() {
   spStaggerTimer = setTimeout(() => { spikeStaggered = false; if (spikeActive) scheduleEnemy(); }, SP().staggerMs) as unknown as number;
 }
 function spikeOnStroke(ev: StrokeEvent) {
-  if (spikeParryOpen) { spTryParry(ev); return; }   // 방어 창: 다음 획은 쳐내기
-  const tech = tracker.feed(ev); updateTech(tech);   // 자유 공격(콤보 추적)
-  if (tech && tech.type === 'success') { spikeArtHit(tech); return; }
-  spikeBasicHit(ev);
+  if (performance.now() < spPlayerStunUntil) { pendingFlick = null; return; }   // 튕김 경직 중 입력 무시
+  if (spikeParryOpen) { spDefend(ev); pendingFlick = null; return; }            // 방어 창
+  const tech = tracker.feed(ev); updateTech(tech);                              // 자유 공격(콤보 추적)
+  if (tech && tech.type === 'success') { spikeArtHit(tech); pendingFlick = null; return; }
+  spikeBasicHit(ev); pendingFlick = null;
 }
 function spikeBasicHit(ev: StrokeEvent) {
   if (ev.grade === 'miss') { $('#spLog').textContent = '✗ 헛손질'; return; }
-  let dmg = freeAttackDamage(ev.grade) + playerStats().power;   // 진행도 위력 반영
-  if (spikeStaggered) dmg = Math.round(dmg * SP().staggerCounterMul);
-  spEnemyHp -= dmg; spBars();
+  if (!spGroggyBroken && isGuarded(ev.strokeId, spGuard)) { spBlocked(ev); return; }   // 막힌 방향 → 튕김
+  const dmg = applyHitBonus(freeAttackDamage(ev.grade) + playerStats().power);
+  spEnemyHp -= dmg; spCombo++; addGroggy(JD().groggyPerHit); renderCombo(); spBars();
   const nm = STROKE_TEMPLATES[ev.strokeId]?.name ?? ev.strokeId;
-  $('#spLog').textContent = `⚔ ${nm}(${ev.grade}) · 적 −${dmg}` + (spikeStaggered ? ' (반격!)' : '');
+  $('#spLog').textContent = `⚔ ${nm}(${ev.grade}) · 적 −${dmg}${comboTag()}`;
   feelHit(ev.grade, false); dmgPopup(dmg, ev.grade);
   if (spEnemyHp <= 0) spEnd(true);
 }
-function spikeArtHit(tech: SpArt) {
-  let dmg = tech.damage + playerStats().power;
-  if (spikeStaggered) dmg = Math.round(dmg * SP().staggerCounterMul);
-  spEnemyHp -= dmg; spMana = Math.max(0, spMana - Math.round(tech.mana)); spBars();
-  $('#spLog').textContent = `⚔⚔ ${tech.name}! 적 −${dmg}`;
+function spikeArtHit(tech: SpArt) {   // 아츠는 가드 관통(강타)
+  const dmg = applyHitBonus(tech.damage + playerStats().power);
+  spEnemyHp -= dmg; spMana = Math.max(0, spMana - Math.round(tech.mana)); spCombo++; addGroggy(JD().groggyPerHit); renderCombo(); spBars();
+  $('#spLog').textContent = `⚔⚔ ${tech.name}! 적 −${dmg}${comboTag()}`;
   feelHit('art', true); dmgPopup(dmg, 'art');
   if (spEnemyHp <= 0) spEnd(true);
+}
+// 튕김: 막힌 방향 공격 = 0데미지 + 콤보 리셋 + 짧은 경직.
+function spBlocked(ev: StrokeEvent) {
+  spCombo = 0; renderCombo();
+  spPlayerStunUntil = performance.now() + JD().blockedStunMs;
+  const nm = STROKE_TEMPLATES[ev.strokeId]?.name ?? ev.strokeId;
+  $('#spLog').textContent = `챙! ${nm} 막혔다 — 열린 방향을 노려라`;
+  const el = $('#spEnemyArt'); el.classList.remove('blocked'); void el.offsetWidth; el.classList.add('blocked');
+  feelShake(Math.round(FEEL().shakeHitPx * 0.7)); playBlock(); haptic('bad');
+}
+function applyHitBonus(dmg: number): number {
+  let m = comboMultiplier(spCombo + 1, JD().comboStep, JD().comboMax);
+  if (spGroggyBroken) m *= JD().groggyDamageMul;
+  else if (spikeStaggered) m *= SP().staggerCounterMul;
+  return Math.max(1, Math.round(dmg * m));
+}
+function comboTag(): string { return spCombo >= 2 ? ` ×${spCombo}` : (spGroggyBroken ? ' 그로기!' : ''); }
+function renderCombo() { const el = document.querySelector('#spCombo'); if (el) el.textContent = spCombo >= 2 ? `연타 ×${spCombo}` : ''; }
+// 그로기 게이지: 정타/쳐내기/회피로 축적 → 만충 시 자세 붕괴(전방향 오픈·강타 창).
+function addGroggy(n: number) {
+  if (spGroggyBroken) return;
+  spGroggy = Math.min(JD().groggyMax, spGroggy + n); spBars();
+  if (spGroggy >= JD().groggyMax) spGroggyBreak();
+}
+function spGroggyBreak() {
+  spGroggyBroken = true; spGroggy = JD().groggyMax; spBars();
+  $('#spike').classList.add('groggy'); renderGuard();
+  $('#spLog').textContent = '★ 자세 붕괴 — 지금! 전방향 난무!';
+  if (soundOn) playGroggySignal();
+  clearTimeout(spGroggyTimer);
+  spGroggyTimer = setTimeout(spGroggyReset, JD().groggyWindowMs) as unknown as number;
+}
+function spGroggyReset() {
+  spGroggyBroken = false; spGroggy = 0; spBars();
+  $('#spike').classList.remove('groggy'); renderGuard();
+}
+function spGroggyDecay() {
+  clearTimeout(spGroggyDecayTimer);
+  spGroggyDecayTimer = setTimeout(() => {
+    if (spikeActive && !spGroggyBroken && spGroggy > 0) { spGroggy = Math.max(0, spGroggy - JD().groggyDecayPerSec); spBars(); }
+    if (spikeActive) spGroggyDecay();
+  }, 1000) as unknown as number;
 }
 function spEnd(win: boolean) {
   if (!spikeActive) return;                 // 이미 종료 처리됨(추가 획 중복 방지)
@@ -518,6 +613,38 @@ function playHit(isArt: boolean) {
     g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + (isArt ? 0.22 : 0.14));
     o.connect(g); g.connect(audio.destination); o.start(); o.stop(audio.currentTime + 0.24);
   } catch (e) { /* noop */ }
+}
+// 튕김 "챙!" — 고음 금속성 짧은 소리
+function playBlock() {
+  if (!soundOn) return;
+  try {
+    audio = audio || new (AC())();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(1400, audio.currentTime);
+    o.frequency.exponentialRampToValueAtTime(700, audio.currentTime + 0.08);
+    g.gain.setValueAtTime(0.28, audio.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.12);
+    o.connect(g); g.connect(audio.destination); o.start(); o.stop(audio.currentTime + 0.14);
+  } catch (e) { /* noop */ }
+}
+// 그로기 "지금!" — 낮게 울리는 신호
+function playGroggySignal() {
+  if (!soundOn) return;
+  try {
+    audio = audio || new (AC())();
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(90, audio.currentTime);
+    o.frequency.linearRampToValueAtTime(220, audio.currentTime + 0.25);
+    g.gain.setValueAtTime(0.0001, audio.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.4, audio.currentTime + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + 0.5);
+    o.connect(g); g.connect(audio.destination); o.start(); o.stop(audio.currentTime + 0.52);
+  } catch (e) { /* noop */ }
+}
+// 피격 붉은 비네트 연출(연출 청크에서 확장 예정)
+function playerHurtFx() {
+  const app = $('#app'); app.classList.remove('hurt'); void app.offsetWidth; app.classList.add('hurt');
+  setTimeout(() => app.classList.remove('hurt'), 320);
 }
 $('#spExit').addEventListener('click', exitSpike);
 
@@ -913,7 +1040,21 @@ function endStroke() {
   if (res.rejected) { rejectHud(res.reason!); if (pts.length > 1) { lastOverlay = { user: resample(pts, 40), ideal: null, grade: 'miss' }; overlayFade = 1; } return; }
   lastOverlay = { user: resample(pts, 40), ideal: idealForDisplay(res.strokeId!, pts), grade: res.grade! };
   overlayFade = 1;
+  pendingFlick = computeFlick(pts);   // 빠른 좌/우 플릭(스텝 회피용) 판정 — 빨강 예고에서만 사용
   emitStroke({ strokeId: res.strokeId!, accuracy: res.accuracy!, grade: res.grade!, inputMode: 'gesture', timestamp: performance.now(), breakdown: res.breakdown });
+}
+// 빠른 좌/우 플릭 감지: 짧고 빠른 수평 스와이프 = 스텝 회피 입력. balance.spike.judge.
+function computeFlick(pts: Pt[]): 'L' | 'R' | null {
+  if (pts.length < 2) return null;
+  const j = BALANCE.spike.judge;
+  const a = pts[0], b = pts[pts.length - 1];
+  const dur = (b.t ?? 0) - (a.t ?? 0);
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len = Math.hypot(dx, dy), ratio = len / Math.min(W, H);
+  if (dur > j.flickMaxMs) return null;               // 느리면 플릭 아님(그냥 베기)
+  if (Math.abs(dx) < Math.abs(dy) * 1.4) return null; // 수평이어야
+  if (ratio < j.flickMinLenRatio || ratio > j.flickMaxLenRatio) return null;
+  return dx > 0 ? 'R' : 'L';
 }
 canvas.addEventListener('pointerup', endStroke);
 canvas.addEventListener('pointercancel', endStroke);
@@ -953,6 +1094,7 @@ function resolveCommand() {
   lastOverlay = { user: null, ideal, grade: rj.grade };
   overlayFade = 1;
   const timing01 = Math.max(0, 1 - (rj.maxErr || 0) / BALANCE.rhythm.windows.bad);
+  pendingFlick = null;   // 검결(커맨드)은 플릭이 아님
   emitStroke({
     strokeId: rec.strokeId, accuracy: rj.accuracy, grade: rj.grade, inputMode: 'command', timestamp: performance.now(),
     breakdown: { direction: 1, straight: 1, speed: timing01, completion: 1 }, powerBonus: rj.powerBonus,

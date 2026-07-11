@@ -8,3 +8,4 @@ export * from './rhythm';
 export * from './combo';
 export * from './style';
 export * from './progression';
+export * from './combat';

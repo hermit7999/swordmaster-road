@@ -61,6 +61,15 @@ export interface Balance {
     staggerMs: number; staggerCounterMul: number; parryManaGain: number;
     kinds: Record<string, { hpMul: number; atkMinMs: number; atkMaxMs: number; windowMs: number }>;
     slowMo: { windowMs: number; scale: number };
+    judge: {
+      guardShiftMinMs: number; guardShiftMaxMs: number;
+      blockedStunMs: number; blockedComboReset: boolean;
+      comboStep: number; comboMax: number;
+      groggyMax: number; groggyPerHit: number; groggyPerParry: number; groggyPerDodge: number;
+      groggyWindowMs: number; groggyDamageMul: number; groggyDecayPerSec: number;
+      flickMaxMs: number; flickMinLenRatio: number; flickMaxLenRatio: number;
+      dodgeInvulnMs: number;
+    };
   };
   difficultyEase: Record<string, number>;
   dialogueSpeed: Record<string, number>;
@@ -76,8 +85,8 @@ export interface Technique {
   name: string; combo: string[]; window: number; cost: number; damage: number;
   stun?: boolean; aoe?: boolean; pierce?: boolean;
 }
-export interface EnemyAttack { name: string; dir: string; counter: string; counterName: string; damage: number; signature?: boolean }
-export interface Enemy { name: string; hp: number; image?: string; signature?: string; signatureWeight?: number; attacks: EnemyAttack[] }
+export interface EnemyAttack { name: string; dir: string; counter: string; counterName: string; damage: number; signature?: boolean; type?: 'yellow' | 'red' }
+export interface Enemy { name: string; hp: number; image?: string; signature?: string; signatureWeight?: number; guardPatterns?: string[][]; attacks: EnemyAttack[] }
 export interface Trial { name: string; strokes: string[]; intervalMs: number; avgPass: number }
 export interface Item { name: string; kind: 'consumable' | 'sword'; effect?: string; value?: number; power?: number; price: number; desc: string; source: string[] }
 export interface DlgChoice { text: string; hint?: string; styleId: string }
