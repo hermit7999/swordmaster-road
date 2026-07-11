@@ -897,7 +897,7 @@ let arcadeActive = false;
 const ACD = () => BALANCE.arcade;
 const acSprites: Record<string, HTMLImageElement | null> = {};
 interface AcEnemy { kind: 'goblin' | 'shield'; x: number; hp: number; hpMax: number; face: number; state: 'idle' | 'chase' | 'tele'; timer: number; shield: boolean; hitFx: number; guardFx: number; knock: number; dead: number; splashes: { x: number; y: number; t: number; r: number }[]; }
-const acHero = { x: 60, y: 0, vx: 0, vy: 0, onGround: true, face: 1, pose: 'idle', poseT: 0, hp: 60, invuln: 0, run: 0, slash: 0 };
+const acHero = { x: 60, y: 0, vx: 0, vy: 0, onGround: true, jumps: 0, face: 1, pose: 'idle', poseT: 0, hp: 60, invuln: 0, run: 0, slash: 0 };
 let acCam = 0, acGroundY = 0, acEnemies: AcEnemy[] = [], acBlocks: { x0: number; x1: number; top: number }[] = [];
 let acWon = false, acDead = false, acEndT = 0, acPrevT = 0;
 const acKeys = { left: false, right: false };
@@ -913,7 +913,7 @@ function enterArcade() {
   loadAcSprites();
   arcadeActive = true; acWon = false; acDead = false; acEndT = 0; acCam = 0; acPrevT = 0;
   acGroundY = H * ACD().groundFrac;
-  Object.assign(acHero, { x: 60, y: acGroundY, vx: 0, vy: 0, onGround: true, face: 1, pose: 'idle', poseT: 0, hp: ACD().heroHp, invuln: 0, run: 0, slash: 0 });
+  Object.assign(acHero, { x: 60, y: acGroundY, vx: 0, vy: 0, onGround: true, jumps: 0, face: 1, pose: 'idle', poseT: 0, hp: ACD().heroHp, invuln: 0, run: 0, slash: 0 });
   acKeys.left = false; acKeys.right = false;
   acBlocks = [{ x0: 470, x1: 660, top: acGroundY - 78 }, { x0: 1120, x1: 1330, top: acGroundY - 128 }];
   const mk = (kind: 'goblin' | 'shield', x: number): AcEnemy => ({ kind, x, hp: kind === 'shield' ? ACD().shieldHp : ACD().goblinHp, hpMax: kind === 'shield' ? ACD().shieldHp : ACD().goblinHp, face: -1, state: 'idle', timer: ACD().enemyAtkMinMs + Math.random() * (ACD().enemyAtkMaxMs - ACD().enemyAtkMinMs), shield: kind === 'shield', hitFx: 0, guardFx: 0, knock: 0, dead: 0, splashes: [] });
@@ -934,7 +934,12 @@ function acSurfaceAt(x: number): number {
   for (const b of acBlocks) if (x > b.x0 && x < b.x1 && acHero.y <= b.top + 1) g = Math.min(g, b.top);   // 위에 서 있는 중
   return g;
 }
-function acJump() { if (arcadeActive && acHero.onGround && !acWon && !acDead) { acHero.vy = -ACD().jumpV; acHero.onGround = false; } }
+function acJump() {   // 2단 점프: 지상 1회 + 공중 1회(maxJumps). 스페이스·↑·⤴ 공통 진입점.
+  if (!arcadeActive || acWon || acDead) return;
+  const A = ACD();
+  if (acHero.onGround) { acHero.vy = -A.jumpV; acHero.onGround = false; acHero.jumps = 1; }
+  else if (acHero.jumps < A.maxJumps) { acHero.vy = -A.jumpV; acHero.jumps++; }
+}
 function acHeroHurt(dmg: number) {
   if (performance.now() < acHero.invuln) return;
   acHero.hp -= dmg; acHero.invuln = performance.now() + ACD().hitInvulnMs; acHud();
@@ -957,7 +962,8 @@ function acUpdate(dtMs: number) {
   // 중력·착지
   acHero.vy += A.gravity * dt; acHero.y += acHero.vy * dt;
   const surf = acSurfaceAt(acHero.x);
-  if (acHero.y >= surf) { acHero.y = surf; acHero.vy = 0; acHero.onGround = true; } else acHero.onGround = false;
+  if (acHero.y >= surf) { acHero.y = surf; acHero.vy = 0; if (!acHero.onGround) acHero.jumps = 0; acHero.onGround = true; }
+  else { if (acHero.onGround) acHero.jumps = 1; acHero.onGround = false; }   // 단차에서 걸어 떨어지면 지상 점프 소진(공중 1회만)
   // 포즈
   acHero.poseT -= dtMs;
   if (acHero.poseT <= 0) { acHero.pose = !acHero.onGround ? 'jump' : (dir !== 0 ? 'run' : 'idle'); if (acHero.pose === 'run') acHero.run += dt * 0.4; }
@@ -1521,7 +1527,7 @@ window.addEventListener('keydown', e => {
   if (arcadeActive) {   // 아케이드: 방향키 이동 + 스페이스 점프 (검결 입력 아님)
     if (e.key === 'ArrowLeft') { acKeys.left = true; e.preventDefault(); return; }
     if (e.key === 'ArrowRight') { acKeys.right = true; e.preventDefault(); return; }
-    if (e.key === ' ' || e.key === 'ArrowUp') { acJump(); e.preventDefault(); return; }
+    if (e.key === ' ' || e.key === 'ArrowUp') { if (!e.repeat) acJump(); e.preventDefault(); return; }
     return;
   }
   const dir = KEYMAP[e.key];

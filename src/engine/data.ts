@@ -72,7 +72,7 @@ export interface Balance {
     };
   };
   arcade: {
-    gravity: number; moveSpeed: number; jumpV: number; groundFrac: number;
+    gravity: number; moveSpeed: number; jumpV: number; maxJumps: number; groundFrac: number;
     worldW: number; heroHp: number; heroScale: number; enemyScale: number;
     meleeRange: number; enemyAggro: number; enemyAtkRange: number;
     enemyAtkMinMs: number; enemyAtkMaxMs: number; enemyTeleMs: number; enemyDamage: number;

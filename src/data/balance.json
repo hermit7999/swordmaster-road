@@ -68,7 +68,7 @@
     }
   },
   "arcade": {
-    "gravity": 0.9, "moveSpeed": 3.6, "jumpV": 15, "groundFrac": 0.82,
+    "gravity": 0.9, "moveSpeed": 3.6, "jumpV": 16, "maxJumps": 2, "groundFrac": 0.82,
     "worldW": 2600, "heroHp": 60, "heroScale": 0.55, "enemyScale": 0.5,
     "meleeRange": 150, "enemyAggro": 340, "enemyAtkRange": 100,
     "enemyAtkMinMs": 1700, "enemyAtkMaxMs": 3200, "enemyTeleMs": 650, "enemyDamage": 9,
