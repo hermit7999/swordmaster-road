@@ -898,7 +898,7 @@ let arcadeActive = false;
 const ACD = () => BALANCE.arcade;
 const acSprites: Record<string, HTMLImageElement | null> = {};
 interface AcEnemy { kind: 'goblin' | 'shield'; wave: number; x: number; hp: number; hpMax: number; face: number; state: 'idle' | 'chase' | 'tele'; timer: number; shield: boolean; hitFx: number; guardFx: number; knock: number; dead: number; splashes: { x: number; y: number; t: number; r: number }[]; }
-interface AcProj { x: number; dir: number; life: number; hit: Set<AcEnemy>; }
+interface AcProj { x: number; launchX: number; dir: number; life: number; hit: Set<AcEnemy>; }
 const acHero = { x: 60, y: 0, vx: 0, vy: 0, onGround: true, jumps: 0, face: 1, pose: 'idle', poseT: 0, hp: 60, invuln: 0, run: 0, slash: 0 };
 let acCam = 0, acGroundY = 0, acEnemies: AcEnemy[] = [], acBlocks: { x0: number; x1: number; top: number }[] = [];
 let acWon = false, acDead = false, acEndT = 0, acPrevT = 0;
@@ -909,6 +909,11 @@ let acSlashFx: { t: number; dir: number; slam: boolean; y: number }[] = [];   //
 let acFx = { t: 0, dur: 0, focusX: 0, focusY: 0, split: null as AcEnemy | null };
 let acTimeScale = 1, acZoom = 1, acFlash = 0;
 const acKeys = { left: false, right: false };
+// 트윈스틱(모바일): 좌반=가상 조이스틱(이동+점프), 우반=검격 존(긋기). 멀티터치 동시.
+let acStickId: number | null = null, acMoveX = 0, acStickUp = false, acStickDownT = 0;
+const acStickOrg = { x: 0, y: 0 }, acStickCur = { x: 0, y: 0 };
+let acSlashId: number | null = null, acSlashT0 = 0, acSlashPts: Pt[] = [];
+const padK = () => (BALANCE.padScale[settings.padSize] ?? 1);
 const HW = 30;   // 히어로 반폭(벽 충돌)
 
 function loadAcSprites() {
@@ -923,7 +928,7 @@ function enterArcade() {
   acGroundY = H * ACD().groundFrac;
   Object.assign(acHero, { x: 60, y: acGroundY, vx: 0, vy: 0, onGround: true, jumps: 0, face: 1, pose: 'idle', poseT: 0, hp: ACD().heroHp, invuln: 0, run: 0, slash: 0 });
   acKeys.left = false; acKeys.right = false;
-  acKi = 0; acProjectiles = []; acSlashFx = []; acFx = { t: 0, dur: 0, focusX: 0, focusY: 0, split: null }; acTimeScale = 1; acZoom = 1; acFlash = 0;
+  acKi = 0; acProjectiles = []; acSlashFx = []; acFx = { t: 0, dur: 0, focusX: 0, focusY: 0, split: null }; acTimeScale = 1; acZoom = 1; acFlash = 0; acResetTouch();
   acBlocks = [{ x0: 470, x1: 660, top: acGroundY - 78 }, { x0: 1120, x1: 1330, top: acGroundY - 128 }];
   const A = ACD();
   const mk = (kind: 'goblin' | 'shield', x: number, wave: number): AcEnemy => ({ kind, wave, x, hp: kind === 'shield' ? A.shieldHp : A.goblinHp, hpMax: kind === 'shield' ? A.shieldHp : A.goblinHp, face: -1, state: 'idle', timer: A.enemyAtkMinMs + Math.random() * (A.enemyAtkMaxMs - A.enemyAtkMinMs), shield: kind === 'shield', hitFx: 0, guardFx: 0, knock: 0, dead: 0, splashes: [] });
@@ -940,7 +945,7 @@ function enterArcade() {
 }
 function exitArcade() {
   if (!arcadeActive && !$('#arcade').classList.contains('on')) return;
-  arcadeActive = false; acKeys.left = false; acKeys.right = false;
+  arcadeActive = false; acKeys.left = false; acKeys.right = false; acResetTouch();
   $('#arcade').classList.remove('on'); $('#app').classList.remove('spike-open', 'arcade-open');
 }
 function acSurfaceAt(x: number): number {
@@ -965,8 +970,9 @@ function acHud() { ($('#acHpFill')).style.width = Math.max(0, acHero.hp / ACD().
 function acUpdate(dtMs: number) {
   const dt = Math.min(2.5, dtMs / 16.67), A = ACD();
   if (acWon || acDead) { acEndT += dtMs; if (acEndT > 2200) exitArcade(); return; }
-  const dir = (acKeys.right ? 1 : 0) - (acKeys.left ? 1 : 0);
-  if (dir !== 0) acHero.face = dir;
+  // 이동: 조이스틱(연속 -1..1) 활성 시 우선, 아니면 키보드
+  const dir = acStickId !== null ? acMoveX : ((acKeys.right ? 1 : 0) - (acKeys.left ? 1 : 0));
+  if (Math.abs(dir) > 0.05) acHero.face = dir > 0 ? 1 : -1;
   // 수평 이동 + 벽 충돌(단차 측면)
   let nx = acHero.x + dir * A.moveSpeed * dt;
   for (const b of acBlocks) {
@@ -1000,12 +1006,18 @@ function acUpdate(dtMs: number) {
     else if (dist <= A.enemyAtkRange) { e.timer -= dtMs; if (e.timer <= 0) { e.state = 'tele'; e.timer = A.enemyTeleMs; } }
     else e.state = 'idle';
   }
-  // 검기 참격 이동·충돌(원거리 다수 절단, 관통 — 방패도 가른다)
+  // 검기 참격 이동·충돌 — 발사 전방 + 사거리 내 + 화면(뷰포트) 내로만 한정(버그: 뒤쪽·화면밖 적 전멸 방지)
+  const swRange = BALANCE.swordWave.range || W;   // 기본 = 화면 폭
   for (const p of acProjectiles) {
     p.life -= dtMs; p.x += p.dir * A.kiSpeed * dt;
+    if (Math.abs(p.x - p.launchX) > swRange) { p.life = 0; continue; }   // 사거리 초과 → 소멸
     for (const e of acEnemies) {
       if (e.hp <= 0 || p.hit.has(e)) continue;
-      if (Math.abs(e.x - p.x) > A.kiRange) continue;
+      if (Math.sign(e.x - p.launchX) !== p.dir) continue;                 // 발사 방향 전방만
+      if (Math.abs(e.x - p.launchX) > swRange) continue;                  // 사거리 내
+      const esx = e.x - acCam;
+      if (esx < 0 || esx > W) continue;                                   // 화면 안(뷰포트)만
+      if (Math.abs(e.x - p.x) > A.kiRange) continue;                      // 참격 스윕 폭
       p.hit.add(e);
       if (e.shield) { e.shield = false; e.guardFx = 0; acShatter(e); }
       e.hp -= A.kiDamage; e.hitFx = 240; e.knock = p.dir * (A.knockPx / 8);
@@ -1056,7 +1068,7 @@ function acAttack(ev: StrokeEvent) {
   acHero.pose = isSlam ? 'slam' : 'slash'; acHero.poseT = 260;
   // 검기 발출: 게이지 만충 + 퍼펙트 획 → 화면 가로지르는 참격(원거리·관통·방패 무시)
   if (acKi >= A.kiMax && ev.grade === 'perfect') {
-    acProjectiles.push({ x: acHero.x + acHero.face * 40, dir: acHero.face, life: A.kiLifeMs, hit: new Set() });
+    acProjectiles.push({ x: acHero.x + acHero.face * 40, launchX: acHero.x, dir: acHero.face, life: A.kiLifeMs, hit: new Set() });
     acKi = 0; acHud(); acFlash = 0.85; feelShake(FEEL().shakeArtPx); playHit(true); haptic('perfect');
     acSlashFx.push({ t: 240, dir: acHero.face, slam: false, y: acGroundY - 70 });
     $('#acMsg').textContent = '검기 발출 — 一閃!';
@@ -1085,14 +1097,62 @@ function acAttack(ev: StrokeEvent) {
 }
 function acShatter(e: AcEnemy) { for (let i = 0; i < 8; i++) e.splashes.push({ x: (Math.random() - 0.5) * 80, y: -40 - Math.random() * 80, t: 600, r: 6 + Math.random() * 10 }); }
 
-$('#acLeft').addEventListener('pointerdown', e => { e.preventDefault(); acKeys.left = true; });
-$('#acLeft').addEventListener('pointerup', () => { acKeys.left = false; });
-$('#acLeft').addEventListener('pointerleave', () => { acKeys.left = false; });
-$('#acRight').addEventListener('pointerdown', e => { e.preventDefault(); acKeys.right = true; });
-$('#acRight').addEventListener('pointerup', () => { acKeys.right = false; });
-$('#acRight').addEventListener('pointerleave', () => { acKeys.right = false; });
-$('#acJump').addEventListener('pointerdown', e => { e.preventDefault(); acJump(); });
 $('#acExit').addEventListener('click', exitArcade);
+
+// ---- 트윈스틱(모바일) 입력: 터치 포인터만 좌/우 분기. 마우스는 기존 제스처(PC) 유지 ----
+function acResetTouch() { acStickId = null; acSlashId = null; acMoveX = 0; acStickUp = false; acSlashPts = []; }
+function acTouchDown(e: PointerEvent) {
+  gRect = canvas.getBoundingClientRect();
+  const half = window.innerWidth / 2;
+  if (e.clientX < half) {                          // 좌반 = 가상 조이스틱
+    if (acStickId !== null) return;
+    acStickId = e.pointerId;
+    acStickOrg.x = e.clientX; acStickOrg.y = e.clientY;
+    acStickCur.x = e.clientX; acStickCur.y = e.clientY;
+    acMoveX = 0; acStickUp = false; acStickDownT = performance.now();
+  } else {                                          // 우반 = 검격 존(긋기)
+    if (acSlashId !== null) return;
+    acSlashId = e.pointerId; acSlashT0 = performance.now();
+    acSlashPts = [{ x: relX(e), y: relY(e), t: 0 }]; liveTrail = acSlashPts;
+  }
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* noop */ }
+}
+function acTouchMove(e: PointerEvent) {
+  const A = ACD(), k = padK();
+  if (e.pointerId === acStickId) {
+    acStickCur.x = e.clientX; acStickCur.y = e.clientY;
+    const dx = acStickCur.x - acStickOrg.x, dy = acStickCur.y - acStickOrg.y;
+    const rad = A.stickRadius * k, dead = A.stickDead * k;
+    acMoveX = Math.abs(dx) < dead ? 0 : Math.max(-1, Math.min(1, dx / rad));
+    if (dy < -rad * A.jumpSwipeFrac && !acStickUp) { acStickUp = true; acJump(); }   // 스와이프 업 = 점프
+    else if (dy > -rad * A.jumpSwipeFrac * 0.4) acStickUp = false;                    // 엄지 내려오면 재점프(2단) 가능
+  } else if (e.pointerId === acSlashId) {
+    acSlashPts.push({ x: relX(e), y: relY(e), t: performance.now() - acSlashT0 });
+  }
+}
+function acTouchUp(e: PointerEvent) {
+  if (e.pointerId === acStickId) {
+    const held = performance.now() - acStickDownT;
+    const moved = Math.hypot(acStickCur.x - acStickOrg.x, acStickCur.y - acStickOrg.y);
+    if (held < 220 && moved < ACD().stickDead * padK() * 1.6 && !acStickUp) acJump();   // 짧은 탭 = 점프
+    acStickId = null; acMoveX = 0; acStickUp = false;
+  } else if (e.pointerId === acSlashId) {
+    const pts = acSlashPts; acSlashId = null; acSlashPts = []; liveTrail = null;
+    acFinishSlash(pts);
+  }
+}
+function acFinishSlash(pts: Pt[]) {   // 검격 존 긋기 → 판정(존 크기로 스케일) → acAttack 라우팅
+  if (pts.length < 2) return;
+  const zoneW = window.innerWidth / 2, zoneH = window.innerHeight;   // 우측 반 = 축소 판정 프레임
+  const res = judgeStroke(pts, { w: zoneW, h: zoneH }, currentStyle);
+  if (res.rejected) { if (pts.length > 1) { lastOverlay = { user: resample(pts, 40), ideal: null, grade: 'miss' }; overlayFade = 1; } return; }
+  lastOverlay = { user: resample(pts, 40), ideal: idealForDisplay(res.strokeId!, pts), grade: res.grade! };
+  overlayFade = 1;
+  pendingFlick = computeFlick(pts);
+  const dur = (pts[pts.length - 1].t ?? 0) - (pts[0].t ?? 0);
+  pendingHeavy = dur >= BALANCE.momentum.chargeHoldMs;
+  emitStroke({ strokeId: res.strokeId!, accuracy: res.accuracy!, grade: res.grade!, inputMode: 'gesture', timestamp: performance.now(), breakdown: res.breakdown });
+}
 // ---- 아케이드 렌더(#ink 캔버스) ----
 function drawArcade() {
   const A = ACD();
@@ -1145,6 +1205,7 @@ function drawArcade() {
   drawAcSprite(poseImg, acHero.x - acCam, acHero.y + bob, A.heroScale, acHero.face, tilt);
   ctx.globalAlpha = 1;
   ctx.restore();
+  acDrawControls();   // 트윈스틱 UI(가이드 링 + 조이스틱) — 화면 공간
   // 섬광(一閃) — 화면 공간 오버레이
   if (acFlash > 0) {
     ctx.globalAlpha = acFlash * 0.5; ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
@@ -1153,6 +1214,26 @@ function drawArcade() {
   }
   if (acWon) { ctx.fillStyle = 'rgba(201,168,106,.95)'; ctx.font = 'bold 40px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('끝 — 도착!', W / 2, H * 0.4); ctx.textAlign = 'left'; }
   if (acDead) { ctx.fillStyle = 'rgba(156,47,38,.95)'; ctx.font = 'bold 36px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('쓰러졌다…', W / 2, H * 0.4); ctx.textAlign = 'left'; }
+}
+const AC_TOUCH = (typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches) || (typeof window !== 'undefined' && 'ontouchstart' in window);
+// 트윈스틱 UI: 우측 검격 존 가이드 링(상시 은은) + 좌측 조이스틱(터치 중)
+function acDrawControls() {
+  if (!AC_TOUCH) return;   // PC(마우스)는 화면 어디든 긋기 — UI 없음
+  const A = ACD(), k = padK();
+  const ringR = A.slashRingRadius * k, rcx = W * 0.75, rcy = H * 0.6;
+  ctx.strokeStyle = 'rgba(201,168,106,.13)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(rcx, rcy, ringR, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(201,168,106,.07)';
+  ctx.beginPath(); ctx.arc(rcx, rcy, ringR * 0.62, 0, Math.PI * 2); ctx.stroke();
+  if (acStickId !== null) {
+    const sr = A.stickRadius * k;
+    let dx = acStickCur.x - acStickOrg.x, dy = acStickCur.y - acStickOrg.y;
+    const d = Math.hypot(dx, dy); if (d > sr) { dx = dx / d * sr; dy = dy / d * sr; }
+    ctx.strokeStyle = 'rgba(230,220,195,.32)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(acStickOrg.x, acStickOrg.y, sr, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(230,220,195,.5)';
+    ctx.beginPath(); ctx.arc(acStickOrg.x + dx, acStickOrg.y + dy, 24, 0, Math.PI * 2); ctx.fill();
+  }
 }
 // 피니시: 적을 세로로 갈라 두 조각이 벌어지며 회전·페이드
 function acDrawSplit(img: HTMLImageElement | null, sx: number, footY: number, scale: number, prog: number) {
@@ -1542,6 +1623,7 @@ $('#shopExit').addEventListener('click', exitShop);
 let drawing = false, points: Pt[] = [], t0 = 0, gRect: DOMRect | null = null;
 const relX = (e: PointerEvent) => e.clientX - gRect!.left, relY = (e: PointerEvent) => e.clientY - gRect!.top;
 canvas.addEventListener('pointerdown', e => {
+  if (arcadeActive && e.pointerType === 'touch') { e.preventDefault(); acTouchDown(e); return; }   // 트윈스틱(모바일)
   if (!arbiter.tryAcquire('gesture')) return;
   gRect = canvas.getBoundingClientRect();
   drawing = true; t0 = performance.now();
@@ -1549,6 +1631,7 @@ canvas.addEventListener('pointerdown', e => {
   liveTrail = points; try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* noop */ }
 });
 canvas.addEventListener('pointermove', e => {
+  if (arcadeActive && e.pointerType === 'touch') { acTouchMove(e); return; }
   if (!drawing) return;
   points.push({ x: relX(e), y: relY(e), t: performance.now() - t0 });
 });
@@ -1587,8 +1670,12 @@ function computeFlick(pts: Pt[]): 'L' | 'R' | null {
   if (ratio < j.flickMinLenRatio || ratio > j.flickMaxLenRatio) return null;
   return dx > 0 ? 'R' : 'L';
 }
-canvas.addEventListener('pointerup', endStroke);
-canvas.addEventListener('pointercancel', endStroke);
+function onPointerEnd(e: PointerEvent) {
+  if (arcadeActive && e.pointerType === 'touch') { acTouchUp(e); return; }
+  endStroke();
+}
+canvas.addEventListener('pointerup', onPointerEnd);
+canvas.addEventListener('pointercancel', onPointerEnd);
 
 /* ---- T0-04 검결(劍訣) CommandCapture ---- */
 const cmdBuf: CommandInput[] = [];

@@ -79,7 +79,9 @@ export interface Balance {
     goblinHp: number; shieldHp: number; knockPx: number; hitInvulnMs: number; signX: number;
     kiMax: number; kiPerHit: number; kiDamage: number; kiSpeed: number; kiLifeMs: number; kiRange: number;
     finishSlowScale: number; finishSlowMs: number; finishZoom: number; finishDurMs: number;
+    stickRadius: number; stickDead: number; jumpSwipeFrac: number; slashRingRadius: number;
   };
+  swordWave: { range: number };
   momentum: {
     enemyHpMul: number; playerHp: number;
     momentumMax: number; momentumDrainPerSec: number; momentumPerHit: number; missDrain: number;

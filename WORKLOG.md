@@ -480,3 +480,9 @@ OI-12(원무 커맨드 난이도)는 원무가 M1 범위라 M0 DoD 아님(보류
   · 다운로드: HF hub 다운로드가 LFS blob 0바이트 스톨 → curl 직접 URL로 2.13GB 받음(tools/models/, gitignore). 저장위치 tools/models·tools/.gen_asset.lock는 .gitignore 추가.
   · gen_asset.py txt2img 모드 추가: --model(체크포인트)·--lcm·--no-ip 인자. from_single_file(fp32)+선택적 IP-Adapter+cpu offload. 미지정 시 모드별 기본(txt2img 24스텝·guidance 7). NEG에 gradient/vignette/3d render 추가(플랫 배경 유도).
   · 재시험(enemy_archer_ink, ip 0.4/0.6, txt2img 24스텝): 장당 ~55초, VRAM 3.83GB. **그림체 성공** — 굵은 잉크 외곽선+플랫 채색+다크판타지, 세트에 근접(DreamShaper 대비 큰 개선). ip0.6이 활 당기는 자세·화살통·왼쪽보기 다 만족. 누끼는 부분 성공(바깥 배경 제거·헤일로 잔존): 원인=CLIP 77토큰 초과로 "flat background" 지시 잘림+잉크튀김 섬. 후속=프롬프트 축약(배경지시 77토큰 내)+누끼 허용오차↑. 사용자 그림체 판정 대기.
+
+- 2026-07-12 [Claude] 아케이드 모바일 조작 개편(트윈스틱) + 검기 사거리 버그 + 유령 패널 — 실기 피드백 3건.
+  · #1 트윈스틱: ◀▶⤴ 버튼(acBtn) 전면 폐기. 좌반=가상 조이스틱(터치시작점에 원, 밀어 이동=연속 -1..1 acMoveX, 위로 쓸어올림/짧은 탭=점프, 뗌=정지), 우반=검격 존(은은한 가이드 링 상시, 그 안 긋기=판정). 멀티터치로 이동+베기 동시. 터치 포인터만 좌/우 분기(canvas 핸들러에서 pointerType==='touch'), **마우스는 기존 제스처 유지=PC 불변**. 판정은 존 크기({w:innerWidth/2, h:innerHeight})로 스케일. 스틱/링 크기 balance.arcade(stickRadius/stickDead/jumpSwipeFrac/slashRingRadius)+설정 가상키크기(padScale) 연동. 스와이프 재점프 허용(2단). #acHint 갱신.
+  · #2 검기 사거리 버그(뒤쪽·화면밖 적 전멸): 참격 히트를 발사 전방(sign)+사거리 내(launchX 기준)+화면(뷰포트) 내로 한정. balance.swordWave.range 노출(기본 0=화면 폭). AcProj에 launchX 추가.
+  · #3 우하단 빈 갈색 패널 = #acJump 버튼(⤴, 브라운 원, 폰서 글리프 안 뜨면 빈 패널로 보임). #1의 acBtn 제거로 함께 소멸(별도 조치 불필요, DOM 쿼리로 확인).
+  · tsc 무경고·vitest 118·build OK. **라이브 터치 검증은 환경 한계로 불가**(검증 탭 백그라운드=RAF 정지, 프리뷰 페인 innerWidth=0). 이벤트 전달·pointerType='touch' 도달은 확인. #1 실기 감각은 사용자 폰 재판정.
