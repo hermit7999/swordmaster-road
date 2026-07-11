@@ -77,6 +77,8 @@ export interface Balance {
     meleeRange: number; enemyAggro: number; enemyAtkRange: number;
     enemyAtkMinMs: number; enemyAtkMaxMs: number; enemyTeleMs: number; enemyDamage: number;
     goblinHp: number; shieldHp: number; knockPx: number; hitInvulnMs: number; signX: number;
+    kiMax: number; kiPerHit: number; kiDamage: number; kiSpeed: number; kiLifeMs: number; kiRange: number;
+    finishSlowScale: number; finishSlowMs: number; finishZoom: number; finishDurMs: number;
   };
   momentum: {
     enemyHpMul: number; playerHp: number;

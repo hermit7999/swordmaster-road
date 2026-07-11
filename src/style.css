@@ -232,9 +232,14 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
 #app.arcade-open #pad { visibility: hidden; }
 #arcade { position: absolute; inset: 0; z-index: 22; pointer-events: none; display: none; }
 #arcade.on { display: block; }
-#acTop { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: min(300px,70%); display: flex; align-items: center; gap: 8px;
+#acTop { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: min(380px,82%); display: flex; align-items: center; gap: 7px;
   font-size: 12px; color: var(--bone); background: rgba(18,15,12,.6); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; }
-#acTop span { width: 26px; opacity: .85; }
+#acTop span { width: 26px; opacity: .85; flex: none; }
+#acTop .kiLbl { color: var(--gold); }
+.kibar { flex: 1; height: 9px; background: var(--panel); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+#acKiFill { height: 100%; width: 0; background: linear-gradient(90deg,#6a86c0,#afd0ff); transition: width .12s linear; }
+#acKiFill.full { background: linear-gradient(90deg,#e6c86a,#fff2c0); box-shadow: 0 0 8px #ffe9a0; animation: kipulse .7s ease-in-out infinite; }
+@keyframes kipulse { 0%,100% { opacity: 1; } 50% { opacity: .6; } }
 #acMsg { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); font-size: clamp(14px,3vw,20px); font-weight: 700; color: var(--gold); text-shadow: 0 2px 6px #000; text-align: center; }
 #acHint { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--bone); opacity: .5; white-space: nowrap; }
 .acBtn { position: absolute; bottom: 20px; width: 62px; height: 62px; border-radius: 50%; background: rgba(18,15,12,.5); border: 1px solid var(--gold); color: var(--gold);
