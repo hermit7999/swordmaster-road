@@ -468,3 +468,8 @@ OI-12(원무 커맨드 난이도)는 원무가 M1 범위라 M0 DoD 아님(보류
   · 템포 파형 레벨: [잡몹 3(학살)→빈 구간(달리기)→방패+1(긴장)→큰 무리 5+검기(폭발)]. worldW 3300·signX 3050.
   · 검증(엔진 훅): 다수 절단(한 획 고블린 3동시 "관통 3명")·검기 충전(+14/정타→만충)→퍼펙트 발출(proj 스폰·원거리 3명 일선 절단·게이지 0)·웨이브 전멸→피니시(fxT 760·timeScale 0.3·zoom 램프·split dead) 전부 확인. tsc 무경고·vitest 118·build OK.
   · 미검(라이브 렌더): 줌/갈라짐/참격 픽셀은 검증 탭 백그라운드(RAF 정지)로 미확인 — drawArcade save/restore 균형·투영 리뷰로 검증. 2단계(읽기 층: 생동 AI·예고·광전사/궁수) 사용자 플레이 판정 후.
+
+- 2026-07-12 [Claude] 아트 자동화 — 로컬 diffusion(ModelFit 엔진) 연결 tools/gen_asset.py + enemy_archer 시험 3장.
+  · 로컬 생성 환경 = ModelFit(contents/modelfit): diffusers 스택(DreamShaper-8-inpaint + IP-Adapter + LCM), venv=spike/.venv, GPU=GTX 1660 SUPER 6GB, :7860 앱 가동. A1111/Comfy 없음. 라이선스=OpenRAIL-M+Apache(상업 게임 가능).
+  · tools/gen_asset.py: "전체 흰 마스크 인페인트 + IP-Adapter(스타일 앵커)" 트릭으로 txt2img처럼 생성(추가 다운로드 0, HF 캐시만). 앵커 인자(monster=enemy_goblin/background=bg_forest/person=portrait_hero 또는 경로), ip_scale 인자(다중=변형), GPU 프리체크(여유 VRAM<min이면 대기·안내)+락파일, 모서리색 누끼(floodfill)+알파 crop. ModelFit venv 파이썬으로 실행.
+  · 시험(enemy_archer, ip 0.5/0.7/0.9, 512²·8스텝): 장당 ~30초, VRAM 4.44GB. **판정 결과 그림체 불일치** — 우리 플랫 잉크(sumi-e) 세트가 아니라 사실적 렌더 컨셉아트. ip↑일수록 잉크질감·어두움 증가하나 베이스(DreamShaper=포토리얼) 한계. 활/화살통 대신 도검·왼쪽보기 불명확. 배경 그라디언트라 모서리누끼 실패(플랫 배경 필요). → 스타일 접근법 재결정 대기(잉크 LoRA/모델 다운로드 승인 or img2img 스케치 or 렌더 스타일 수용).
