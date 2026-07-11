@@ -8,7 +8,7 @@ import {
 } from './engine';
 import type { Dialogue, DlgLine } from './engine';
 import type { Pt, Dir, Grade, Style, StrokeEvent, CommandInput, Enemy, EnemyAttack } from './engine';
-import { loadArt, setSceneBg, artUrl, tuneArt, artTuneState } from './art';
+import { loadArt, setSceneBg, artUrl, tuneArt, artTuneState, repaintSceneBg } from './art';
 
 const $ = (s: string) => document.querySelector(s) as HTMLElement;
 const canvas = document.querySelector('#ink') as HTMLCanvasElement;
@@ -173,12 +173,7 @@ function emitStroke(ev: StrokeEvent, extra?: string) {
   if (ev.grade !== 'miss') mastery[ev.strokeId] = (mastery[ev.strokeId] || 0) + gradePoints(ev.grade);
   playGrade(ev.grade); haptic(ev.grade);
   updateHud(ev, extra);
-  if (spikeActive) { spikeOnStroke(ev); return; }   // 스파이크 전투(자유 공격 + 방어)
-  if (combatActive) {   // T1-07 결전: 응수 창에서만 판정. 그 외엔 무시 대신 피드백(무반응/의도차단 구분). 버그4
-    if (awaitingParry) combatOnParry(ev);
-    else toast('관찰 중(觀察) — 응수(應手) 신호를 기다려라');
-    return;
-  }
+  if (spikeActive) { spikeOnStroke(ev); return; }         // 전투(3층 루프)로 라우팅
   if (trialActive) { trialCtl.feed(ev); return; }         // T1-08 승급 시험으로 라우팅
   if (trainingActive) { trainingCtl.feed(ev); return; }   // T1-06 수련 모드로 라우팅
   updateTech(tracker.feed(ev));
@@ -296,33 +291,7 @@ function finishTraining() {
   setTimeout(exitTraining, 1800);
 }
 
-/* ---- T1-07 결전(決戰) 전투 씬 (DOM). 관찰(觀察)→응수(應手)→해소(解消) FSM ---- */
-let combatActive = false, awaitingParry = false;
-let cbEnemy: Enemy, cbEnemyHpMax = 0, cbEnemyHp = 0, cbPlayerHp = 0, cbPlayerHpMax = 60, cbMana = 0;
-let cbAttack: EnemyAttack | null = null;
-let cbTimer: number | undefined;
-const CB = () => BALANCE.combat;
-const cbTxt = (sel: string, v: string) => { $(sel).textContent = v; };
-function cbBars() {
-  ($('#cbEnemyHp')).style.width = Math.max(0, cbEnemyHp / cbEnemyHpMax * 100) + '%';
-  ($('#cbPlayerHp')).style.width = Math.max(0, cbPlayerHp / cbPlayerHpMax * 100) + '%';
-  ($('#cbMana')).style.width = Math.max(0, cbMana / CB().manaMax * 100) + '%';
-}
-// 적 아트 지연 로드. 실패 시 아트 영역 숨김(기존 도형/텍스트 UI만 유지 — 폴백).
-function loadEnemyArt(name?: string) {
-  const el = $('#cbEnemyArt'); el.classList.remove('on', 'hit'); el.style.backgroundImage = '';
-  if (!name) return;
-  loadArt(name).then(img => { if (img && combatActive) { el.style.backgroundImage = `url("${artUrl(name)}")`; el.classList.add('on'); } });
-}
-// 피격 연출: 잉크 스플래시 + 짧은 명멸(balance.art.hitFlashMs).
-function enemyHitFx() {
-  const art = $('#cbEnemyArt'), sp = $('#cbSplash');
-  const ms = BALANCE.art.hitFlashMs;
-  art.style.setProperty('--hitms', ms + 'ms'); sp.style.setProperty('--hitms', ms + 'ms');
-  art.classList.remove('hit'); sp.classList.remove('play'); void art.offsetWidth;   // 리플로우로 애니 재시작
-  art.classList.add('hit'); sp.classList.add('play');
-}
-// 방향별 오디오 큐 — 소리만으로 응수 방향 인지 가능(FR-FBK).
+/* ---- 방향별 오디오 큐(FR-FBK) — 소리만으로 예고 방향 인지. 전투 루프에서 사용 ---- */
 const CUE_FREQ: Record<string, number> = { '→': 520, '←': 392, '↑': 720, '↓': 300 };
 function playCue(dir: string) {
   if (!soundOn) return;
@@ -337,240 +306,117 @@ function playCue(dir: string) {
     o.start(); o.stop(audio.currentTime + 0.4);
   } catch (e) { /* noop */ }
 }
-// T2-03: 전투 3무게 — 조우(encounter, 실시간 1타)·정예(elite, 간소 합)·결전(boss, 전체 FSM)
-let combatKind: 'encounter' | 'elite' | 'boss' = 'boss';
-let cbRespondMs = 2200, cbAttackWindow = 2200, cbSignatureNow = false;
-// T2-06: 다음 공격 선택. 보스는 시그니처(달인 획)를 가중 출제하고, 그 응수 창은
-// 플레이어의 해당 카운터 숙련도에 따라 늘/줄어 난이도가 체감된다(FR-CBT-011).
-function pickAttack() {
-  const e = cbEnemy;
-  if (e.signature && e.signatureWeight && Math.random() < e.signatureWeight) {
-    cbAttack = e.attacks.find(a => a.signature) ?? e.attacks[0];
-  } else {
-    const pool = e.signature ? e.attacks.filter(a => !a.signature) : e.attacks;
-    const use = pool.length ? pool : e.attacks;
-    cbAttack = use[Math.floor(Math.random() * use.length)];
-  }
-  cbAttackWindow = cbRespondMs; cbSignatureNow = false;
-  if (cbAttack.signature && e.signature) {
-    cbSignatureNow = true;
-    const me = CB().masteryEase;
-    const mastered = (mastery[e.signature] || 0) >= me.threshold;
-    cbAttackWindow = Math.round(cbRespondMs * (mastered ? me.easyScale : me.hardScale));
-  }
-  cbAttackWindow = Math.round(cbAttackWindow * difficultyEase);   // 설정: 판정 난이도(관대=창 넓음)
-}
-function signatureHint(): string {
-  if (!cbSignatureNow || !cbEnemy.signature) return '';
-  return (mastery[cbEnemy.signature] || 0) >= CB().masteryEase.threshold
-    ? ' · 간파(看破)! 일섬의 궤가 보인다' : ' · 일섬(一閃) — 눈 깜짝할 새';
-}
-function enterCombat(enemyId = 'goblin', kind: 'encounter' | 'elite' | 'boss' = 'boss') {
-  combatKind = kind;
-  const k = CB().kinds[kind] ?? CB().kinds.boss;
-  cbEnemy = ENEMIES[enemyId];
-  cbEnemyHpMax = Math.max(1, Math.round(cbEnemy.hp * (k.hpMul ?? 1))); cbEnemyHp = cbEnemyHpMax;
-  cbPlayerHpMax = playerStats().hpMax; cbPlayerHp = cbPlayerHpMax; cbMana = CB().startMana;
-  cbRespondMs = k.respondMs ?? CB().respondMs;
-  renderCombatItems();
-  combatActive = true; awaitingParry = false; combatResult = 'quit';   // 중도이탈 기본
-  $('#combat').classList.add('on'); $('#hint').style.display = 'none'; $('#btnCombat').classList.add('active');
-  cbTxt('#cbEnemyName', cbEnemy.name); cbBars();
-  loadEnemyArt(cbEnemy.image);
-  setSceneBg(kind === 'boss' ? 'bg_bossgate' : 'bg_forest', true);   // 씬 배경(전투)
-  if (kind === 'encounter') {
-    cbTxt('#cbLog', '조우(遭遇) — 적이 급습한다! 예고 방향으로 즉시 일섬(一閃)하라');
-    cbTimer = setTimeout(cbEncounter, 600) as unknown as number;
-  } else {
-    cbTxt('#cbLog', (kind === 'elite' ? '정예전(精銳) 시작' : '결전(決戰) 시작') + ' — 적의 예고를 보고 응수하라 (소리로도 방향 인지 가능)');
-    cbTimer = setTimeout(cbObserve, 700) as unknown as number;
-  }
-}
-// 조우전: 실시간 1타. 예고 후 즉시 응수 창(觀察 없음). 정타=섬광 일격, 빗나감=스침(저스테이크 돌파).
-function cbEncounter() {
-  pickAttack(); const a = cbAttack!;
-  cbTxt('#cbPhase', '일섬(一閃) — 지금!');
-  cbTxt('#cbTele', `적 급습! ${a.name} ${a.dir} — 섬광 응수: ${a.counterName}`);
-  playCue(a.dir);
-  awaitingParry = true;
-  if (soundOn) playTick();
-  const win = (CB().kinds.encounter.windowMs ?? cbRespondMs) * difficultyEase;   // 설정: 판정 난이도
-  cbTimer = setTimeout(() => combatOnParry(null), win) as unknown as number;
-}
-function cbEncounterResolve(ev: StrokeEvent | null) {
-  const a = cbAttack!;
-  const ok = !!ev && ev.strokeId === a.counter && (ev.grade === 'good' || ev.grade === 'great' || ev.grade === 'perfect');
-  cbEnemyHp = 0; cbBars(); if (ok) enemyHitFx();
-  cbTxt('#cbPhase', ok ? '섬광(閃光)' : '스침(掠)');
-  const r = grantReward('encounter');
-  if (ok) cbTxt('#cbLog', `⚡ 섬광 일격! ${a.counterName}(${ev!.grade}) — 적을 베고 지나쳤다 · ${r}`);
-  else { const what = ev ? (STROKE_TEMPLATES[ev.strokeId]?.name ?? ev.strokeId) : '무입력'; cbTxt('#cbLog', `✗ 빗나갔다(${what}) — ${a.name}에 스쳤으나 돌파했다 · ${r}`); }
-  combatWon = true; combatResult = 'win';   // 조우는 돌파(노드 완료)
-  cbTimer = setTimeout(exitCombat, 1400) as unknown as number;
-}
-let combatWon = false, combatResult: 'win' | 'lose' | 'quit' = 'quit';
-function exitCombat() {
-  combatActive = false; awaitingParry = false; clearTimeout(cbTimer);
-  $('#combat').classList.remove('on'); $('#btnCombat').classList.remove('active');
-  $('#cbEnemyArt').classList.remove('on', 'hit'); setSceneBg(null);
-  const s = combatWon; combatWon = false; runAfterScene(s);   // 맵 복귀(승리 여부 전달)
-}
-function cbNextHap() {
-  if (cbEnemyHp <= 0) return cbEnd(true);
-  if (cbPlayerHp <= 0) return cbEnd(false);
-  cbObserve();
-}
-function cbObserve() {
-  pickAttack(); const a = cbAttack!;
-  cbTxt('#cbPhase', '관찰(觀察)');
-  cbTxt('#cbTele', `적: ${a.name} ${a.dir} — 응수: ${a.counterName}${signatureHint()}`);
-  playCue(a.dir);
-  cbCanUseItem = true; renderCombatItems();   // 관찰 페이즈에만 아이템 사용 가능
-  cbTimer = setTimeout(cbRespond, CB().observeMs) as unknown as number;
-}
-function cbRespond() {
-  cbTxt('#cbPhase', '응수(應手) — 지금!');
-  awaitingParry = true; cbCanUseItem = false; renderCombatItems();
-  if (soundOn) playTick();  // "지금" 신호
-  const bonus = cbRespondBonus; cbRespondBonus = 0;   // 안법부적: 이번 응수 창만 연장
-  cbTimer = setTimeout(() => combatOnParry(null), cbAttackWindow + bonus) as unknown as number;   // 시그니처면 숙련도로 가감
-}
-function combatOnParry(ev: StrokeEvent | null) {
-  if (!awaitingParry) return;
-  awaitingParry = false; clearTimeout(cbTimer);
-  if (combatKind === 'encounter') { cbEncounterResolve(ev); return; }
-  const a = cbAttack!;
-  const ok = !!ev && ev.strokeId === a.counter && (ev.grade === 'good' || ev.grade === 'great' || ev.grade === 'perfect');
-  cbTxt('#cbPhase', '해소(解消)');
-  if (ok) {
-    const dmg = CB().parryDamage[ev!.grade as 'good' | 'great' | 'perfect'] + playerStats().power;  // T2-04 위력 반영
-    cbEnemyHp -= dmg; enemyHitFx();
-    cbMana = Math.min(CB().manaMax, cbMana + (ev!.grade === 'perfect' ? CB().manaRecoverPerfect : CB().manaRecoverHit));
-    cbTxt('#cbLog', `⚔ 반격! ${a.counterName}(${ev!.grade}) · 적 HP −${dmg}` + (ev!.grade === 'perfect' ? ' · 마나 회복+' : ''));
-  } else {
-    cbPlayerHp -= a.damage;
-    const what = ev ? (STROKE_TEMPLATES[ev.strokeId]?.name ?? ev.strokeId) : '무입력';
-    cbTxt('#cbLog', `✗ 응수 실패! ${a.name} 피격 · 내 HP −${a.damage} (${what})`);
-  }
-  cbBars();
-  cbTimer = setTimeout(cbNextHap, 950) as unknown as number;
-}
-function cbEnd(win: boolean) {
-  combatWon = win; combatResult = win ? 'win' : 'lose';
-  cbTxt('#cbPhase', win ? '승리(勝)' : '패배(敗)');
-  if (win) { const r = grantReward(combatKind); cbTxt('#cbLog', `적을 쓰러뜨렸다! · 보상 ${r}`); }
-  else cbTxt('#cbLog', '쓰러졌다… 체크포인트에서 다시.');
-  awaitingParry = false;
-  setTimeout(exitCombat, 2200);
-}
-// T2-04: 아이템은 관찰(觀察) 페이즈에만 사용. 소모품 3종(회복/기력/응수창 연장).
-let cbCanUseItem = false, cbRespondBonus = 0;
-function renderCombatItems() {
-  const box = document.querySelector('#cbItems'); if (!box) return;
-  const owned = Object.keys(CONSUMABLES).filter(id => (inventory[id] ?? 0) > 0);
-  if (!owned.length) { box.innerHTML = '<span class="cbNoItem">소지 아이템 없음</span>'; return; }
-  box.innerHTML = owned.map(id => {
-    const it = CONSUMABLES[id];
-    return `<button class="cbItem" data-item="${id}" ${cbCanUseItem ? '' : 'disabled'}>${it.name} ×${inventory[id]}</button>`;
-  }).join('');
-  box.querySelectorAll('.cbItem').forEach(b => b.addEventListener('click', () => useItem((b as HTMLElement).dataset.item!)));
-}
-function useItem(id: string) {
-  if (!cbCanUseItem || (inventory[id] ?? 0) <= 0) return;   // 관찰 페이즈에서만
-  const it = CONSUMABLES[id]; if (!it) return;
-  inventory[id]--;
-  if (it.effect === 'heal') { cbPlayerHp = Math.min(cbPlayerHpMax, cbPlayerHp + (it.value ?? 0)); cbTxt('#cbLog', `${it.name} 사용 · HP +${it.value}`); }
-  else if (it.effect === 'mana') { cbMana = Math.min(CB().manaMax, cbMana + (it.value ?? 0)); cbTxt('#cbLog', `${it.name} 사용 · 마나 +${it.value}`); }
-  else if (it.effect === 'slow') { cbRespondBonus += (it.value ?? 0); cbTxt('#cbLog', `${it.name} 사용 · 다음 응수 창 +${((it.value ?? 0) / 1000).toFixed(1)}초`); }
-  cbBars(); renderCombatItems(); saveGame();
-}
-$('#btnCombat').addEventListener('click', () => { combatActive ? exitCombat() : enterCombat(); });
-$('#cbExit').addEventListener('click', exitCombat);
+// (구 결전 FSM 제거 — 전투는 아래 3층 루프로 일원화. 결전 버튼은 자유연습용 정예 진입)
+$('#btnCombat').addEventListener('click', () => { spikeActive ? exitSpike() : enterSpike('goblin', 'elite'); });
 
-/* ==== 스파이크 전투(프로토타입): 자유공격 + 콤보 + 방어 3층 + 타격감. 늑대 1종. ====
-   기존 결전(enterCombat)은 그대로 유지. 자가진단 개발 버튼에서 진입. 실시간(감속 없음). */
-let spikeActive = false, spikeParryOpen = false, spikeStaggered = false;
-let spEnemy: Enemy, spEnemyHpMax = 0, spEnemyHp = 0, spPlayerHp = 0, spMana = 0;
-let spAttack: EnemyAttack | null = null;
+/* ==== 전투(3층 루프): 자유공격 + 콤보 + 방어 + 타격감. 조우/정예/결전 공통(종류별 파라미터).
+   시간 감속(슬로모)은 보스 시그니처(일섬) 전용 연출. 지도 전투 노드가 이 루프로 진입. ==== */
+let spikeActive = false, spikeParryOpen = false, spikeStaggered = false, spikeSlowMo = false;
+let spEnemy: Enemy, spEnemyId = 'wolf';
+let spikeKind: 'encounter' | 'elite' | 'boss' = 'elite';
+let spEnemyHpMax = 0, spEnemyHp = 0, spPlayerHp = 0, spPlayerHpMax = 60, spMana = 0;
+let spAttack: EnemyAttack | null = null, spAttackIsSig = false;
 let spAtkTimer: number | undefined, spWinTimer: number | undefined, spStaggerTimer: number | undefined;
+let spikeResult: 'win' | 'lose' | 'quit' = 'quit';
 let feelShakeMul = 1, feelHitstopMul = 1;   // 자가진단 슬라이더 튜닝
 const SP = () => BALANCE.spike;
+const SPK = () => SP().kinds[spikeKind] ?? SP().kinds.elite;
 const FEEL = () => BALANCE.feel;
 type SpArt = Extract<NonNullable<TechRes>, { type: 'success' }>;
 
 function spBars() {
   ($('#spEnemyHp')).style.width = Math.max(0, spEnemyHp / spEnemyHpMax * 100) + '%';
-  ($('#spPlayerHp')).style.width = Math.max(0, spPlayerHp / SP().playerHp * 100) + '%';
+  ($('#spPlayerHp')).style.width = Math.max(0, spPlayerHp / spPlayerHpMax * 100) + '%';
   ($('#spMana')).style.width = Math.max(0, spMana / SP().manaMax * 100) + '%';
 }
-function enterSpike() {
-  spEnemy = ENEMIES['wolf'];
-  spEnemyHpMax = SP().wolfHp; spEnemyHp = spEnemyHpMax;
-  spPlayerHp = SP().playerHp; spMana = SP().startMana;
-  spikeActive = true; spikeParryOpen = false; spikeStaggered = false;
+function enterSpike(enemyId = 'wolf', kind: 'encounter' | 'elite' | 'boss' = 'elite') {
+  spEnemyId = ENEMIES[enemyId] ? enemyId : 'wolf'; spEnemy = ENEMIES[spEnemyId]; spikeKind = kind;
+  spEnemyHpMax = Math.max(1, Math.round(spEnemy.hp * SPK().hpMul)); spEnemyHp = spEnemyHpMax;
+  spPlayerHpMax = playerStats().hpMax; spPlayerHp = spPlayerHpMax; spMana = SP().startMana;
+  spikeActive = true; spikeParryOpen = false; spikeStaggered = false; spikeSlowMo = false; spikeResult = 'quit';
   tracker = createTechniqueTracker(currentStyle);   // 콤보 초기화
   $('#spike').classList.add('on'); $('#app').classList.add('spike-open'); $('#hint').style.display = 'none';
   $('#diag').style.display = 'none';
-  $('#spEnemyName').textContent = spEnemy.name; spBars();
-  $('#spLog').textContent = '검을 그어 공격하라(劍路/劍訣) — 늑대가 덤비면 예고 방향을 쳐내라';
-  $('#spTele').classList.remove('on'); $('#spTele').textContent = '';
-  setSceneBg('bg_forest', true);
-  const art = $('#spEnemyArt'); art.style.backgroundImage = '';
+  $('#spEnemyName').textContent = spEnemy.name; spBars(); renderSpItems();
+  $('#spLog').textContent = kind === 'boss' ? '결전(決戰) — 베고, 적이 자세를 낮추면 그 방향을 쳐내라'
+    : kind === 'elite' ? '정예전(精銳) — 자유롭게 베고, 예고 방향을 쳐내라'
+    : '조우(遭遇) — 검을 그어 베어라. 덤비면 그 방향을 쳐내라';
+  $('#spTele').classList.remove('on', 'sig'); $('#spTele').textContent = '';
+  setSceneBg(kind === 'boss' ? 'bg_bossgate' : 'bg_forest', true);
+  const art = $('#spEnemyArt'); art.style.backgroundImage = ''; art.classList.remove('stagger', 'hit');
   const img = spEnemy.image || 'enemy_wolf';
   loadArt(img).then(i => { if (i && spikeActive) art.style.backgroundImage = `url("${artUrl(img)}")`; });
-  scheduleWolf();
+  scheduleEnemy();
 }
 function exitSpike() {
   if (!spikeActive && !$('#spike').classList.contains('on')) return;
-  spikeActive = false; spikeParryOpen = false;
+  spikeActive = false; spikeParryOpen = false; endSlowMo();
   clearTimeout(spAtkTimer); clearTimeout(spWinTimer); clearTimeout(spStaggerTimer);
   $('#spike').classList.remove('on'); $('#app').classList.remove('spike-open'); setSceneBg(null);
+  runAfterScene(spikeResult === 'win');   // 지도 복귀 — afterScene이 spikeResult(win/lose/quit)로 분기
 }
-function scheduleWolf() {
+function scheduleEnemy() {
   if (!spikeActive) return;
   clearTimeout(spAtkTimer);
-  const d = SP().atkMinMs + Math.random() * (SP().atkMaxMs - SP().atkMinMs);
-  spAtkTimer = setTimeout(wolfTelegraph, d) as unknown as number;
+  const d = SPK().atkMinMs + Math.random() * (SPK().atkMaxMs - SPK().atkMinMs);
+  spAtkTimer = setTimeout(enemyTelegraph, d) as unknown as number;
 }
-function wolfTelegraph() {
+function pickEnemyAttack(): EnemyAttack {
+  const e = spEnemy;
+  if (spikeKind === 'boss' && e.signature && e.signatureWeight && Math.random() < e.signatureWeight) {
+    return e.attacks.find(a => a.signature) ?? e.attacks[0];
+  }
+  const pool = (spikeKind === 'boss' && e.signature) ? e.attacks.filter(a => !a.signature) : e.attacks;
+  const use = pool.length ? pool : e.attacks;
+  return use[Math.floor(Math.random() * use.length)];
+}
+function enemyTelegraph() {
   if (!spikeActive) return;
-  if (spikeStaggered) { scheduleWolf(); return; }
-  spAttack = spEnemy.attacks[Math.floor(Math.random() * spEnemy.attacks.length)];
-  $('#spTele').textContent = `${spAttack.dir}  ${spAttack.name} — 쳐내라! (${spAttack.counterName})`;
-  $('#spTele').classList.add('on');
-  playCue(spAttack.dir); if (soundOn) playTick();
+  if (spikeStaggered) { scheduleEnemy(); return; }
+  const a = pickEnemyAttack(); spAttack = a;
+  spAttackIsSig = !!(a.signature && spikeKind === 'boss' && spEnemy.signature);
+  playCue(a.dir); if (soundOn) playTick();
   spikeParryOpen = true;
-  spWinTimer = setTimeout(wolfLands, SP().windowMs) as unknown as number;
+  if (spAttackIsSig) {   // 보스 필살(一閃): 그 순간만 세계가 느려진다
+    startSlowMo();
+    $('#spTele').textContent = `⚡ 一閃 — ${a.dir} 쳐내라! (${a.counterName})`;
+    $('#spTele').classList.add('on', 'sig');
+    spWinTimer = setTimeout(enemyLands, SP().slowMo.windowMs) as unknown as number;
+  } else {
+    $('#spTele').textContent = `${a.dir}  ${a.name} — 쳐내라! (${a.counterName})`;
+    $('#spTele').classList.add('on'); $('#spTele').classList.remove('sig');
+    spWinTimer = setTimeout(enemyLands, SPK().windowMs) as unknown as number;
+  }
 }
-function wolfLands() {
-  spikeParryOpen = false; $('#spTele').classList.remove('on');
+function enemyLands() {
+  spikeParryOpen = false; endSlowMo(); $('#spTele').classList.remove('on', 'sig');
   const a = spAttack!; spPlayerHp -= a.damage; spBars();
-  $('#spLog').textContent = `✗ ${a.name}에 물렸다 — HP −${a.damage}`;
+  $('#spLog').textContent = `✗ ${a.name}에 당했다 — HP −${a.damage}`;
   feelShake(FEEL().shakeArtPx); haptic('miss');
   if (spPlayerHp <= 0) return spEnd(false);
-  scheduleWolf();
+  scheduleEnemy();
 }
 function spTryParry(ev: StrokeEvent) {
   const a = spAttack!;
   const ok = ev.strokeId === a.counter && (ev.grade === 'good' || ev.grade === 'great' || ev.grade === 'perfect');
-  clearTimeout(spWinTimer); spikeParryOpen = false; $('#spTele').classList.remove('on');
+  clearTimeout(spWinTimer); spikeParryOpen = false; endSlowMo(); $('#spTele').classList.remove('on', 'sig');
   if (ok) {
     spMana = Math.min(SP().manaMax, spMana + SP().parryManaGain); spBars();
-    $('#spLog').textContent = `⚔ 쳐냈다! ${a.counterName}(${ev.grade}) — 늑대 경직! 지금 베어라`;
-    spStagger(); feelHit('great', false);
+    $('#spLog').textContent = `⚔ 쳐냈다! ${a.counterName}(${ev.grade}) — 적 경직! 지금 베어라` + (spAttackIsSig ? ' (一閃 간파!)' : '');
+    spStagger(); feelHit(spAttackIsSig ? 'art' : 'great', spAttackIsSig);
   } else {
     spPlayerHp -= a.damage; spBars();
     $('#spLog').textContent = `✗ 헛쳤다 — ${a.name} 피격 HP −${a.damage}`;
     feelShake(FEEL().shakeArtPx); haptic('miss');
     if (spPlayerHp <= 0) return spEnd(false);
-    scheduleWolf();
+    scheduleEnemy();
   }
 }
 function spStagger() {
   spikeStaggered = true;
   const el = $('#spEnemyArt'); el.classList.remove('stagger'); void el.offsetWidth; el.classList.add('stagger');
   clearTimeout(spStaggerTimer);
-  spStaggerTimer = setTimeout(() => { spikeStaggered = false; if (spikeActive) scheduleWolf(); }, SP().staggerMs) as unknown as number;
+  spStaggerTimer = setTimeout(() => { spikeStaggered = false; if (spikeActive) scheduleEnemy(); }, SP().staggerMs) as unknown as number;
 }
 function spikeOnStroke(ev: StrokeEvent) {
   if (spikeParryOpen) { spTryParry(ev); return; }   // 방어 창: 다음 획은 쳐내기
@@ -580,7 +426,7 @@ function spikeOnStroke(ev: StrokeEvent) {
 }
 function spikeBasicHit(ev: StrokeEvent) {
   if (ev.grade === 'miss') { $('#spLog').textContent = '✗ 헛손질'; return; }
-  let dmg = freeAttackDamage(ev.grade);
+  let dmg = freeAttackDamage(ev.grade) + playerStats().power;   // 진행도 위력 반영
   if (spikeStaggered) dmg = Math.round(dmg * SP().staggerCounterMul);
   spEnemyHp -= dmg; spBars();
   const nm = STROKE_TEMPLATES[ev.strokeId]?.name ?? ev.strokeId;
@@ -589,7 +435,7 @@ function spikeBasicHit(ev: StrokeEvent) {
   if (spEnemyHp <= 0) spEnd(true);
 }
 function spikeArtHit(tech: SpArt) {
-  let dmg = tech.damage;
+  let dmg = tech.damage + playerStats().power;
   if (spikeStaggered) dmg = Math.round(dmg * SP().staggerCounterMul);
   spEnemyHp -= dmg; spMana = Math.max(0, spMana - Math.round(tech.mana)); spBars();
   $('#spLog').textContent = `⚔⚔ ${tech.name}! 적 −${dmg}`;
@@ -597,10 +443,40 @@ function spikeArtHit(tech: SpArt) {
   if (spEnemyHp <= 0) spEnd(true);
 }
 function spEnd(win: boolean) {
-  spikeParryOpen = false; clearTimeout(spAtkTimer); clearTimeout(spWinTimer); clearTimeout(spStaggerTimer);
-  $('#spTele').classList.remove('on');
-  $('#spLog').textContent = win ? '🐺 늑대를 쓰러뜨렸다! (스파이크 승리)' : '쓰러졌다… (스파이크 패배)';
-  setTimeout(() => exitSpike(), 1900);
+  if (!spikeActive) return;                 // 이미 종료 처리됨(추가 획 중복 방지)
+  spikeActive = false;                       // 이후 획은 스파이크로 라우팅되지 않음(중복 spEnd·보상 방지)
+  spikeParryOpen = false; endSlowMo(); clearTimeout(spAtkTimer); clearTimeout(spWinTimer); clearTimeout(spStaggerTimer);
+  $('#spTele').classList.remove('on', 'sig');
+  spikeResult = win ? 'win' : 'lose';
+  if (win) { const r = grantReward(spikeKind); $('#spLog').textContent = `⚑ 적을 쓰러뜨렸다! · 보상 ${r}`; }
+  else $('#spLog').textContent = '쓰러졌다… 체크포인트에서 다시.';
+  setTimeout(() => exitSpike(), win ? 2100 : 1900);
+}
+function startSlowMo() {
+  spikeSlowMo = true; $('#app').classList.add('slowmo');
+  const bg = document.querySelector('#sceneBg') as HTMLElement | null;
+  if (bg) bg.style.filter = 'saturate(.4) brightness(.72) contrast(1.08)';   // 인라인 필터 오버라이드
+}
+function endSlowMo() {
+  if (!spikeSlowMo) return;
+  spikeSlowMo = false; $('#app').classList.remove('slowmo');
+  repaintSceneBg();   // 배경 필터 원복
+}
+// 아이템(실시간, 언제든 사용) — 회복/기력/응수창 연장
+function renderSpItems() {
+  const box = document.querySelector('#spItems'); if (!box) return;
+  const owned = Object.keys(CONSUMABLES).filter(id => (inventory[id] ?? 0) > 0);
+  box.innerHTML = owned.map(id => `<button class="spItem" data-item="${id}">${CONSUMABLES[id].name} ×${inventory[id]}</button>`).join('');
+  box.querySelectorAll('.spItem').forEach(b => b.addEventListener('click', () => spUseItem((b as HTMLElement).dataset.item!)));
+}
+function spUseItem(id: string) {
+  if (!spikeActive || (inventory[id] ?? 0) <= 0) return;
+  const it = CONSUMABLES[id]; if (!it) return;
+  inventory[id]--;
+  if (it.effect === 'heal') { spPlayerHp = Math.min(spPlayerHpMax, spPlayerHp + (it.value ?? 0)); $('#spLog').textContent = `${it.name} · HP +${it.value}`; }
+  else if (it.effect === 'mana') { spMana = Math.min(SP().manaMax, spMana + (it.value ?? 0)); $('#spLog').textContent = `${it.name} · 마나 +${it.value}`; }
+  else if (it.effect === 'slow') { if (spikeParryOpen && spWinTimer) { clearTimeout(spWinTimer); spWinTimer = setTimeout(enemyLands, it.value ?? 0) as unknown as number; } $('#spLog').textContent = `${it.name} · 응수 창 연장`; }
+  spBars(); renderSpItems(); saveGame();
 }
 // ---- 타격감(feel) ----
 function feelShake(px: number) {
@@ -838,12 +714,12 @@ function runNodeScene(id: string) {
   if (n.type === 'battle') {
     // 전투: 승리=진행, 패배=구역 시작 복귀(체크포인트), 중도이탈=현상 유지.
     afterScene = () => {
-      if (combatResult === 'win') advanceTo(id);
-      else if (combatResult === 'lose') restoreCheckpoint();
+      if (spikeResult === 'win') advanceTo(id);
+      else if (spikeResult === 'lose') restoreCheckpoint();
       enterMap();
     };
     const kind = (n.battleKind === 'encounter' || n.battleKind === 'elite') ? n.battleKind : 'boss';
-    exitMap(); enterCombat(ENEMIES[n.enemy!] ? n.enemy! : 'goblin', kind);   // T2-06: 노드별 적
+    exitMap(); enterSpike(ENEMIES[n.enemy!] ? n.enemy! : 'goblin', kind);   // 3층 루프 전면 이식
     return;
   }
   if (n.type === 'training') {

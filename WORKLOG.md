@@ -399,3 +399,13 @@ OI-12(원무 커맨드 난이도)는 원무가 M1 범위라 M0 DoD 아님(보류
   · main.ts playAfterNode(id): 노드 완료 후 after_<id> 대사 1회 재생 훅. 수련 성공 → advanceTo → after_t1 → 지도.
   · 검증(브라우저): 프롤로그 후 지도=수련만 avail·조우 lock, 수련 탭→node_t1 지시 대사→수련 씬(bg_training). after_t1은 훈련 성공 시(코드 검증). vitest·build OK.
   · 남음: #7 게임성=스파이크 전투 방향 승인 후 본 전투 이식. 수련 내용(장작패기 연출 등)은 기존 3획 커리큘럼 유지(리프레이밍만).
+
+- 2026-07-11 [Claude] 전투 3층 루프 전면 이식 — 조우/정예/결전 전부 신 루프로 교체
+  · enterSpike(enemyId, kind) 일반화: 종류별 파라미터(balance.spike.kinds: hpMul·공격간격·응수창). 적 HP=enemy.hp×hpMul, 플레이어 HP=진행도(playerStats), 자유공격 데미지+위력 보너스, 승리 시 grantReward(종류별 골드·경험치·레벨업), 아이템 바(실시간 사용).
+  · 지도 전투 노드 라우팅을 enterCombat→enterSpike로 교체(조우=goblin/정예=swordsman/결전=ilseomgwi). afterScene은 spikeResult로 승리=진행·패배=체크포인트 복귀.
+  · 보스 시그니처(일섬귀 一閃) 전용 슬로모: 그 순간만 세계가 느려진다 — 응수창 연장(slowMo.windowMs 1900) + 씬 채도↓·비네트·느린 펄스(#app.slowmo, 인라인 필터 오버라이드+repaintSceneBg 원복). 그 외는 실시간.
+  · 온보딩 대사 신 루프 정합화: node_t1(그으면 벤다), after_t1(적이 자세 낮추면 그 방향 되쳐 막아라), node_b1(베고 덤비면 쳐낸다).
+  · **구 결전 FSM 전면 제거**: enterCombat·cbObserve/cbRespond/combatOnParry/cbEnd·pickAttack·cbItems 등 삭제(playCue/playTick 등 공용 헬퍼는 보존), emitStroke combatActive 분기 제거, #btnCombat→신 루프. 번들 −5KB.
+  · 버그 수정: 적 HP≤0 후 추가 획이 spEnd 재호출→보상 2배·afterScene 꼬임 → spEnd 진입 시 spikeActive=false 가드. (이 버그가 노드 미진행도 유발했음, 함께 해결.)
+  · 검증(브라우저): 지도 조우→신 루프(고블린)·자유공격 −15·승리 보상 1회·노드 진행(b1→e1) / 보스→일섬귀·bossgate·시그니처 슬로모(class+필터+一閃 예고)·패배→체크포인트 / 아이템바·종류별 인트로. tsc 무경고·vitest 114/114·build OK·콘솔 에러 0.
+  · 미완/주의: 구 #combat 패널 HTML/CSS는 사표(dead, display:none·일부 클래스는 #spike와 공유)로 잔존 — 별도 정리. 밸런스(적HP·데미지·창·feel)는 T2-08. 세부 체감 조정값은 사용자 미지정→현재값+자가진단 슬라이더.

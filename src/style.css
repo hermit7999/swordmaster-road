@@ -147,6 +147,18 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
 #spike { position: absolute; inset: 0; z-index: 22; pointer-events: none; display: none; }
 #spike.on { display: block; }
 #spEnemyArt.hitstop { transform: translateX(-50%) scale(1.09); }
+#spItems { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 3px; }
+.spItem { pointer-events: auto; font-size: 11px; color: var(--gold); background: rgba(0,0,0,.35);
+  border: 1px solid var(--gold); border-radius: 7px; padding: 3px 9px; cursor: pointer; }
+/* 보스 필살(一閃) 예고 강조 */
+#spTele.sig { color: #ffd76a; font-size: clamp(30px, 7.5vw, 62px);
+  text-shadow: 0 0 34px rgba(255,190,70,.95), 0 2px 4px #000; }
+/* 보스 필살 슬로모: 그 순간만 세계가 느려진다 — 채도↓ + 청량한 비네트 + 느린 펄스 */
+#app.slowmo #sceneBg { filter: saturate(.45) brightness(.78) contrast(1.06); transition: filter .25s ease; }
+#app.slowmo #spEnemyArt { filter: brightness(1.12) drop-shadow(0 0 26px rgba(120,180,255,.75)); }
+#app.slowmo::after { content: ''; position: absolute; inset: 0; z-index: 21; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(60,110,200,.06) 40%, rgba(8,16,34,.6) 100%); }
+#app.slowmo #spTele.sig { animation: telePulse 1.1s ease-in-out infinite alternate; }
 #spTop { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: min(520px, 88%);
   display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--bone);
   background: rgba(18,15,12,.7); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; }

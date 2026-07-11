@@ -57,9 +57,10 @@ export interface Balance {
     popupMs: number; flashMs: number; knockPx: number;
   };
   spike: {
-    wolfHp: number; playerHp: number; manaMax: number; startMana: number;
-    atkMinMs: number; atkMaxMs: number; windowMs: number; telegraphLeadMs: number;
-    wolfDamage: number; staggerMs: number; staggerCounterMul: number; parryManaGain: number;
+    manaMax: number; startMana: number;
+    staggerMs: number; staggerCounterMul: number; parryManaGain: number;
+    kinds: Record<string, { hpMul: number; atkMinMs: number; atkMaxMs: number; windowMs: number }>;
+    slowMo: { windowMs: number; scale: number };
   };
   difficultyEase: Record<string, number>;
   dialogueSpeed: Record<string, number>;

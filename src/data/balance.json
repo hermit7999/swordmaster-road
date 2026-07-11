@@ -49,9 +49,14 @@
     "popupMs": 750, "flashMs": 130, "knockPx": 10
   },
   "spike": {
-    "wolfHp": 80, "playerHp": 60, "manaMax": 40, "startMana": 10,
-    "atkMinMs": 3200, "atkMaxMs": 6000, "windowMs": 1050, "telegraphLeadMs": 500,
-    "wolfDamage": 12, "staggerMs": 1300, "staggerCounterMul": 1.6, "parryManaGain": 8
+    "manaMax": 40, "startMana": 10,
+    "staggerMs": 1300, "staggerCounterMul": 1.6, "parryManaGain": 8,
+    "kinds": {
+      "encounter": { "hpMul": 0.7, "atkMinMs": 3600, "atkMaxMs": 6500, "windowMs": 1150 },
+      "elite":     { "hpMul": 1.0, "atkMinMs": 3000, "atkMaxMs": 5500, "windowMs": 1050 },
+      "boss":      { "hpMul": 1.4, "atkMinMs": 2600, "atkMaxMs": 5000, "windowMs": 1000 }
+    },
+    "slowMo": { "windowMs": 1900, "scale": 0.4 }
   },
   "difficultyEase": { "standard": 1.0, "lenient": 1.25 },
   "dialogueSpeed": { "slow": 1.5, "normal": 1.0, "fast": 0.55 },

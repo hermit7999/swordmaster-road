@@ -49,6 +49,11 @@ export function setSceneBg(name: string | null, combat = false): void {
   });
 }
 
+/** 현재 씬 배경을 다시 칠한다(슬로모 필터 등 임시 오버라이드 해제 복구용). */
+export function repaintSceneBg(): void {
+  const el = document.querySelector('#sceneBg') as HTMLElement | null;
+  if (el) paintBg(el);
+}
 /** 자가진단 슬라이더용: 오버레이(현재 씬 유형)·밝기 실시간 조정 후 즉시 반영. */
 export function tuneArt(patch: Partial<{ overlay: number; brightness: number }>): void {
   if (patch.overlay !== undefined) { if (curCombat) tune.overlayC = patch.overlay; else tune.overlayN = patch.overlay; }

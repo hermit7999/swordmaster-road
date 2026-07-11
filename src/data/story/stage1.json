@@ -36,15 +36,16 @@
     { "speaker": "현곡", "portrait": "portrait_master", "text": "관문 너머에 적하(赤霞)의 수하가 있다. 거기까지가 오늘의 검이다." }
   ] },
   "node_t1": { "lines": [
-    { "speaker": "현곡", "portrait": "portrait_master", "text": "검을 겨누기 전에, 검을 다루는 법부터다. 저 장작을 베어라." },
-    { "speaker": "현곡", "portrait": "portrait_master", "text": "기본 세 획 — 횡으로 베고, 비스듬히 긋고, 위에서 내려찍어라. 몸이 길을 외울 때까지." }
+    { "speaker": "현곡", "portrait": "portrait_master", "text": "검을 그으면 곧 벤다. 기다릴 것 없다 — 저 장작을, 네 손이 가는 대로 베어라." },
+    { "speaker": "현곡", "portrait": "portrait_master", "text": "기본 세 획 — 횡으로 긋고, 비스듬히 흘리고, 위에서 내려찍어라. 몸이 길을 외울 때까지." }
   ] },
   "after_t1": { "lines": [
-    { "speaker": "현곡", "portrait": "portrait_master", "text": "되었다. 손이 검을 기억하는구나 — 기본 동작은 익혔다." },
-    { "speaker": "현곡", "portrait": "portrait_master", "text": "이제 검문 밖으로 나가, 어슬렁대는 잔당 하나를 베어 오너라. 그것이 네 첫 실전이다." }
+    { "speaker": "현곡", "portrait": "portrait_master", "text": "되었다. 손이 검을 기억하는구나 — 벨 줄은 알게 되었다." },
+    { "speaker": "현곡", "portrait": "portrait_master", "text": "허나 실전은 베는 것만이 아니다. 적이 자세를 낮추고 덤비거든, 그 방향으로 되쳐 막아라. 그때만이 무사히 반격할 틈이다." },
+    { "speaker": "현곡", "portrait": "portrait_master", "text": "나가서 잔당 하나를 베어 오너라. 그것이 네 첫 실전이다." }
   ] },
   "node_b1": { "lines": [
-    { "speaker": "무명", "portrait": "portrait_hero", "side": "right", "text": "스승의 명. …처음으로, 살아 있는 것에 검을 겨눈다." }
+    { "speaker": "무명", "portrait": "portrait_hero", "side": "right", "text": "베고, 덤비면 쳐낸다. …처음으로, 살아 있는 것에 검을 겨눈다." }
   ] },
   "node_e1": { "lines": [
     { "text": "두 갈래 길. 한쪽엔 봇짐장수의 등불, 한쪽엔 검은 기운이 어렸다." },
