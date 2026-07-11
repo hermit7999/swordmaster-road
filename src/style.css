@@ -157,6 +157,27 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
 #app.dodgeR { animation: dodgeR .38s ease; }
 @keyframes dodgeL { 0%,100% { transform: none; } 40% { transform: translateX(28px) rotate(-2.2deg); } }
 @keyframes dodgeR { 0%,100% { transform: none; } 40% { transform: translateX(-28px) rotate(2.2deg); } }
+/* 검기(참격흔) — 밝은 사선이 훑고 지나감 */
+#spSlashFx { position: absolute; inset: 0; pointer-events: none; opacity: 0; z-index: 2;
+  background: linear-gradient(115deg, transparent 45%, rgba(255,255,255,.92) 49%, rgba(201,168,106,.85) 51%, transparent 56%); }
+#spSlashFx.play { animation: slashSweep .38s ease-out; }
+@keyframes slashSweep { 0% { opacity: 0; transform: translateX(-28%) scaleX(.6); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateX(28%) scaleX(1.2); } }
+/* 적 날아감(처치) */
+#spEnemyArt.knockout { transition: transform .5s cubic-bezier(.3,-0.4,.7,1), opacity .6s ease, filter .6s ease;
+  transform: translate(-30%, -40px) rotate(14deg) scale(.7); opacity: 0; filter: brightness(0) saturate(0); }
+/* 일섬 피니시: 암전 → 한 획(흰 사선) → 一閃 */
+#spFinish { position: absolute; inset: 0; z-index: 45; display: none; background: rgba(6,5,4,.93); overflow: hidden; }
+#spFinish.on { display: block; animation: finishBlack 1.2s ease-out forwards; }
+@keyframes finishBlack { 0% { opacity: 0; } 12% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+#spFinishSlash { position: absolute; top: 50%; left: -20%; width: 140%; height: 5px;
+  background: linear-gradient(90deg, transparent, #fff, #ffd76a, transparent); box-shadow: 0 0 24px 6px rgba(255,220,140,.9);
+  transform: translateY(-50%) rotate(-16deg) scaleX(0); transform-origin: left center; }
+#spFinish.on #spFinishSlash { animation: finishSlash .55s .1s ease-out forwards; }
+@keyframes finishSlash { 0% { transform: translateY(-50%) rotate(-16deg) scaleX(0); opacity: 1; } 60% { transform: translateY(-50%) rotate(-16deg) scaleX(1); opacity: 1; } 100% { transform: translateY(-50%) rotate(-16deg) scaleX(1); opacity: 0; } }
+#spFinishText { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) scale(.6); opacity: 0;
+  font-size: clamp(48px, 14vw, 120px); font-weight: 900; color: #ffe9b0; text-shadow: 0 0 40px rgba(255,200,90,.9); letter-spacing: 8px; }
+#spFinish.on #spFinishText { animation: finishText .9s .38s ease-out forwards; }
+@keyframes finishText { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.5); } 40% { opacity: 1; transform: translate(-50%,-50%) scale(1.05); } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.15); } }
 /* 보스 필살(一閃) 예고 강조 */
 #spTele.sig { color: #ffd76a; font-size: clamp(30px, 7.5vw, 62px);
   text-shadow: 0 0 34px rgba(255,190,70,.95), 0 2px 4px #000; }

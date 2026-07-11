@@ -555,12 +555,29 @@ function spGroggyDecay() {
 function spEnd(win: boolean) {
   if (!spikeActive) return;                 // 이미 종료 처리됨(추가 획 중복 방지)
   spikeActive = false;                       // 이후 획은 스파이크로 라우팅되지 않음(중복 spEnd·보상 방지)
-  spikeParryOpen = false; endSlowMo(); clearTimeout(spAtkTimer); clearTimeout(spWinTimer); clearTimeout(spStaggerTimer);
-  $('#spTele').classList.remove('on', 'sig');
+  spikeParryOpen = false; endSlowMo();
+  clearTimeout(spAtkTimer); clearTimeout(spWinTimer); clearTimeout(spStaggerTimer);
+  clearTimeout(spGuardTimer); clearTimeout(spGroggyTimer); clearTimeout(spGroggyDecayTimer); clearTimeout(spPressureTimer);
+  $('#spTele').classList.remove('on', 'sig', 'red'); $('#spEnemyArt').classList.remove('teleY', 'teleR', 'gR', 'gL', 'gH', 'gD', 'gBroken');
   spikeResult = win ? 'win' : 'lose';
-  if (win) { const r = grantReward(spikeKind); $('#spLog').textContent = `⚑ 적을 쓰러뜨렸다! · 보상 ${r}`; }
-  else $('#spLog').textContent = '쓰러졌다… 체크포인트에서 다시.';
-  setTimeout(() => exitSpike(), win ? 2100 : 1900);
+  if (win) { spFinish(grantReward(spikeKind)); }
+  else { $('#spLog').textContent = '쓰러졌다… 체크포인트에서 다시.'; setTimeout(() => exitSpike(), 1900); }
+}
+// 처치 쾌감 체인(문서 순서): 히트스톱→흔들림→검기→적 날아감→슬로우→일섬 피니시.
+function spFinish(rewardText: string) {
+  const art = $('#spEnemyArt');
+  $('#spLog').textContent = `⚑ 쓰러뜨렸다! · ${rewardText}`;
+  feelShake(Math.round(FEEL().shakeArtPx * 1.6));   // 흔들림(강)
+  playSlashFx();                                     // 검기
+  playHit(true); startSlowMo();                      // 타격음 + 슬로우
+  setTimeout(() => art.classList.add('knockout'), 130);   // 적 날아감
+  setTimeout(() => { $('#spFinish').classList.add('on'); playHit(true); haptic('perfect'); }, 470);  // 일섬 피니시(암전→한 획→산화)
+  setTimeout(() => { $('#spFinish').classList.remove('on'); art.classList.remove('knockout'); endSlowMo(); }, 1700);
+  setTimeout(() => exitSpike(), 2300);
+}
+function playSlashFx() {
+  const fx = $('#spSlashFx'); fx.classList.remove('play'); void fx.offsetWidth; fx.classList.add('play');
+  setTimeout(() => fx.classList.remove('play'), 380);
 }
 function startSlowMo() {
   spikeSlowMo = true; $('#app').classList.add('slowmo');
