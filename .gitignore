@@ -12,3 +12,7 @@ Thumbs.db
 # 임시
 *.log
 *.tmp
+
+# 로컬 diffusion 모델(대용량, git 제외) + gen_asset 락
+tools/models/
+tools/.gen_asset.lock

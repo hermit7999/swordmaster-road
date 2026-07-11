@@ -473,3 +473,10 @@ OI-12(원무 커맨드 난이도)는 원무가 M1 범위라 M0 DoD 아님(보류
   · 로컬 생성 환경 = ModelFit(contents/modelfit): diffusers 스택(DreamShaper-8-inpaint + IP-Adapter + LCM), venv=spike/.venv, GPU=GTX 1660 SUPER 6GB, :7860 앱 가동. A1111/Comfy 없음. 라이선스=OpenRAIL-M+Apache(상업 게임 가능).
   · tools/gen_asset.py: "전체 흰 마스크 인페인트 + IP-Adapter(스타일 앵커)" 트릭으로 txt2img처럼 생성(추가 다운로드 0, HF 캐시만). 앵커 인자(monster=enemy_goblin/background=bg_forest/person=portrait_hero 또는 경로), ip_scale 인자(다중=변형), GPU 프리체크(여유 VRAM<min이면 대기·안내)+락파일, 모서리색 누끼(floodfill)+알파 crop. ModelFit venv 파이썬으로 실행.
   · 시험(enemy_archer, ip 0.5/0.7/0.9, 512²·8스텝): 장당 ~30초, VRAM 4.44GB. **판정 결과 그림체 불일치** — 우리 플랫 잉크(sumi-e) 세트가 아니라 사실적 렌더 컨셉아트. ip↑일수록 잉크질감·어두움 증가하나 베이스(DreamShaper=포토리얼) 한계. 활/화살통 대신 도검·왼쪽보기 불명확. 배경 그라디언트라 모서리누끼 실패(플랫 배경 필요). → 스타일 접근법 재결정 대기(잉크 LoRA/모델 다운로드 승인 or img2img 스케치 or 렌더 스타일 수용).
+
+- 2026-07-12 [Claude] 아트 자동화(A안) — 잉크 스타일 모델 Inkpunk 도입 + gen_asset txt2img 모드 + enemy_archer 재시험.
+  · 모델 조사→후보 3: Inkpunk-Diffusion(SD1.5, OpenRAIL-M 상업OK), Comic-Diffusion(SD1.5, OpenRAIL-M 상업OK), Darkest-Diffusion(정확히 다키스트 던전풍이나 **비상업 전용 → 제외**). 사용자 승인으로 Inkpunk 선택.
+  · **라이선스 기록(요건 #2)**: Envvi/Inkpunk-Diffusion = CreativeML **OpenRAIL-M** — 상업 이용 허용(행위제한 조항 有, 게임아트 무관). SD1.5 파인튠. 결과물 소유·상업 사용 가능. (Darkest-Diffusion은 비상업 전용이라 사용 안 함.)
+  · 다운로드: HF hub 다운로드가 LFS blob 0바이트 스톨 → curl 직접 URL로 2.13GB 받음(tools/models/, gitignore). 저장위치 tools/models·tools/.gen_asset.lock는 .gitignore 추가.
+  · gen_asset.py txt2img 모드 추가: --model(체크포인트)·--lcm·--no-ip 인자. from_single_file(fp32)+선택적 IP-Adapter+cpu offload. 미지정 시 모드별 기본(txt2img 24스텝·guidance 7). NEG에 gradient/vignette/3d render 추가(플랫 배경 유도).
+  · 재시험(enemy_archer_ink, ip 0.4/0.6, txt2img 24스텝): 장당 ~55초, VRAM 3.83GB. **그림체 성공** — 굵은 잉크 외곽선+플랫 채색+다크판타지, 세트에 근접(DreamShaper 대비 큰 개선). ip0.6이 활 당기는 자세·화살통·왼쪽보기 다 만족. 누끼는 부분 성공(바깥 배경 제거·헤일로 잔존): 원인=CLIP 77토큰 초과로 "flat background" 지시 잘림+잉크튀김 섬. 후속=프롬프트 축약(배경지시 77토큰 내)+누끼 허용오차↑. 사용자 그림체 판정 대기.
