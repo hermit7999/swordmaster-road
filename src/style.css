@@ -228,6 +228,21 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
   font-size: clamp(48px,14vw,120px); font-weight: 900; color: #ffe9b0; text-shadow: 0 0 40px rgba(255,200,90,.9); letter-spacing: 8px; }
 #moFinish.on #moFinishText { animation: finishText .9s .38s ease-out forwards; }
 
+/* ===== 이동 스파이크 — 횡스크롤 아케이드 (월드는 #ink 캔버스, 오버레이는 HUD/버튼) ===== */
+#app.arcade-open #pad { visibility: hidden; }
+#arcade { position: absolute; inset: 0; z-index: 22; pointer-events: none; display: none; }
+#arcade.on { display: block; }
+#acTop { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: min(300px,70%); display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--bone); background: rgba(18,15,12,.6); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; }
+#acTop span { width: 26px; opacity: .85; }
+#acMsg { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); font-size: clamp(14px,3vw,20px); font-weight: 700; color: var(--gold); text-shadow: 0 2px 6px #000; text-align: center; }
+#acHint { position: absolute; top: 46px; left: 50%; transform: translateX(-50%); font-size: 11px; color: var(--bone); opacity: .5; white-space: nowrap; }
+.acBtn { position: absolute; bottom: 20px; width: 62px; height: 62px; border-radius: 50%; background: rgba(18,15,12,.5); border: 1px solid var(--gold); color: var(--gold);
+  font-size: 26px; display: flex; align-items: center; justify-content: center; pointer-events: auto; user-select: none; touch-action: none; }
+.acBtn:active { background: rgba(201,168,106,.3); }
+#acLeft { left: 18px; } #acRight { left: 90px; } #acJump { right: 22px; width: 74px; height: 74px; font-size: 30px; }
+#acExit { position: absolute; top: 10px; right: 12px; pointer-events: auto; font-size: 11px; color: var(--bone); background: rgba(18,15,12,.85); border: 1px solid var(--line); border-radius: 7px; padding: 4px 10px; cursor: pointer; }
+
 /* 보스 필살(一閃) 예고 강조 */
 #spTele.sig { color: #ffd76a; font-size: clamp(30px, 7.5vw, 62px);
   text-shadow: 0 0 34px rgba(255,190,70,.95), 0 2px 4px #000; }

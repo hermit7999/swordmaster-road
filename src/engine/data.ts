@@ -71,6 +71,13 @@ export interface Balance {
       pressureMax: number; pressurePerAttack: number; pressureDecayPerSec: number; pressureFreqReduce: number;
     };
   };
+  arcade: {
+    gravity: number; moveSpeed: number; jumpV: number; groundFrac: number;
+    worldW: number; heroHp: number; heroScale: number; enemyScale: number;
+    meleeRange: number; enemyAggro: number; enemyAtkRange: number;
+    enemyAtkMinMs: number; enemyAtkMaxMs: number; enemyTeleMs: number; enemyDamage: number;
+    goblinHp: number; shieldHp: number; knockPx: number; hitInvulnMs: number; signX: number;
+  };
   momentum: {
     enemyHpMul: number; playerHp: number;
     momentumMax: number; momentumDrainPerSec: number; momentumPerHit: number; missDrain: number;

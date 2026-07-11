@@ -67,6 +67,13 @@
       "pressureMax": 100, "pressurePerAttack": 22, "pressureDecayPerSec": 30, "pressureFreqReduce": 0.5
     }
   },
+  "arcade": {
+    "gravity": 0.9, "moveSpeed": 3.6, "jumpV": 15, "groundFrac": 0.82,
+    "worldW": 2600, "heroHp": 60, "heroScale": 0.55, "enemyScale": 0.5,
+    "meleeRange": 150, "enemyAggro": 340, "enemyAtkRange": 100,
+    "enemyAtkMinMs": 1700, "enemyAtkMaxMs": 3200, "enemyTeleMs": 650, "enemyDamage": 9,
+    "goblinHp": 22, "shieldHp": 34, "knockPx": 70, "hitInvulnMs": 650, "signX": 2380
+  },
   "momentum": {
     "enemyHpMul": 1.0, "playerHp": 60,
     "momentumMax": 100, "momentumDrainPerSec": 20, "momentumPerHit": 24, "missDrain": 40,

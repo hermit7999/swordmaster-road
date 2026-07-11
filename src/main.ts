@@ -110,6 +110,10 @@ let lastOverlay: Overlay | null = null;
 let overlayFade = 0;
 function draw() {
   ctx.clearRect(0, 0, W, H);
+  if (arcadeActive) {
+    const now = performance.now(); const dt = acPrevT ? now - acPrevT : 16; acPrevT = now;
+    acUpdate(dt); drawArcade();
+  }
   if (lastOverlay && overlayFade > 0) {
     const a = overlayFade;
     if (overlayOn && lastOverlay.ideal) {
@@ -174,6 +178,7 @@ function emitStroke(ev: StrokeEvent, extra?: string) {
   if (ev.grade !== 'miss') mastery[ev.strokeId] = (mastery[ev.strokeId] || 0) + gradePoints(ev.grade);
   playGrade(ev.grade); haptic(ev.grade);
   updateHud(ev, extra);
+  if (arcadeActive) { acAttack(ev); return; }             // 횡스크롤 아케이드 — 필드 베기
   if (moActive) { momentumOnStroke(ev, pendingHeavy); return; }   // 재설계 스파이크(momentum FSM)
   if (spikeActive) { spikeOnStroke(ev); return; }         // 전투(3층 루프)로 라우팅
   if (trialActive) { trialCtl.feed(ev); return; }         // T1-08 승급 시험으로 라우팅
@@ -886,6 +891,173 @@ function moPopup(n: number, grade: string) {
 }
 $('#moExit').addEventListener('click', exitMomentum);
 
+/* ==== 이동 스파이크 — 횡스크롤 검객(아케이드). 신규·병행, 씬 전환 없음. 필드에서 그대로 긋기 전투.
+   #ink 캔버스에 월드 렌더(패럴랙스), 이동=버튼/키, 공격=긋기(판정 엔진 재사용). 자가진단 진입. ==== */
+let arcadeActive = false;
+const ACD = () => BALANCE.arcade;
+const acSprites: Record<string, HTMLImageElement | null> = {};
+interface AcEnemy { kind: 'goblin' | 'shield'; x: number; hp: number; hpMax: number; face: number; state: 'idle' | 'chase' | 'tele'; timer: number; shield: boolean; hitFx: number; guardFx: number; knock: number; dead: number; splashes: { x: number; y: number; t: number; r: number }[]; }
+const acHero = { x: 60, y: 0, vx: 0, vy: 0, onGround: true, face: 1, pose: 'idle', poseT: 0, hp: 60, invuln: 0, run: 0, slash: 0 };
+let acCam = 0, acGroundY = 0, acEnemies: AcEnemy[] = [], acBlocks: { x0: number; x1: number; top: number }[] = [];
+let acWon = false, acDead = false, acEndT = 0, acPrevT = 0;
+const acKeys = { left: false, right: false };
+const HW = 30;   // 히어로 반폭(벽 충돌)
+
+function loadAcSprites() {
+  ['hero_idle', 'hero_run', 'hero_jump', 'hero_slash', 'hero_slam', 'enemy_goblin', 'enemy_shieldman'].forEach(n => {
+    if (!acSprites[n]) loadArt('acade/' + n).then(img => { acSprites[n] = img; });
+  });
+  if (!acSprites['bg_forest']) loadArt('bg_forest').then(img => { acSprites['bg_forest'] = img; });
+}
+function enterArcade() {
+  loadAcSprites();
+  arcadeActive = true; acWon = false; acDead = false; acEndT = 0; acCam = 0; acPrevT = 0;
+  acGroundY = H * ACD().groundFrac;
+  Object.assign(acHero, { x: 60, y: acGroundY, vx: 0, vy: 0, onGround: true, face: 1, pose: 'idle', poseT: 0, hp: ACD().heroHp, invuln: 0, run: 0, slash: 0 });
+  acKeys.left = false; acKeys.right = false;
+  acBlocks = [{ x0: 470, x1: 660, top: acGroundY - 78 }, { x0: 1120, x1: 1330, top: acGroundY - 128 }];
+  const mk = (kind: 'goblin' | 'shield', x: number): AcEnemy => ({ kind, x, hp: kind === 'shield' ? ACD().shieldHp : ACD().goblinHp, hpMax: kind === 'shield' ? ACD().shieldHp : ACD().goblinHp, face: -1, state: 'idle', timer: ACD().enemyAtkMinMs + Math.random() * (ACD().enemyAtkMaxMs - ACD().enemyAtkMinMs), shield: kind === 'shield', hitFx: 0, guardFx: 0, knock: 0, dead: 0, splashes: [] });
+  acEnemies = [mk('goblin', 900), mk('goblin', 1030), mk('shield', 1860)];
+  setSceneBg(null);
+  $('#arcade').classList.add('on'); $('#app').classList.add('spike-open', 'arcade-open'); $('#hint').style.display = 'none'; $('#diag').style.display = 'none';
+  acHud();
+}
+function exitArcade() {
+  if (!arcadeActive && !$('#arcade').classList.contains('on')) return;
+  arcadeActive = false; acKeys.left = false; acKeys.right = false;
+  $('#arcade').classList.remove('on'); $('#app').classList.remove('spike-open', 'arcade-open');
+}
+function acHud() { ($('#acHpFill')).style.width = Math.max(0, acHero.hp / ACD().heroHp * 100) + '%'; }
+function acSurfaceAt(x: number): number {
+  let g = acGroundY;
+  for (const b of acBlocks) if (x > b.x0 && x < b.x1 && acHero.vy >= 0 && acHero.y <= b.top + 26) g = Math.min(g, b.top);
+  for (const b of acBlocks) if (x > b.x0 && x < b.x1 && acHero.y <= b.top + 1) g = Math.min(g, b.top);   // 위에 서 있는 중
+  return g;
+}
+function acJump() { if (arcadeActive && acHero.onGround && !acWon && !acDead) { acHero.vy = -ACD().jumpV; acHero.onGround = false; } }
+function acHeroHurt(dmg: number) {
+  if (performance.now() < acHero.invuln) return;
+  acHero.hp -= dmg; acHero.invuln = performance.now() + ACD().hitInvulnMs; acHud();
+  feelShake(FEEL().shakeArtPx); playerHurtFx(); haptic('miss');
+  if (acHero.hp <= 0) { acDead = true; acEndT = 0; }
+}
+function acUpdate(dtMs: number) {
+  const dt = Math.min(2.5, dtMs / 16.67), A = ACD();
+  if (acWon || acDead) { acEndT += dtMs; if (acEndT > 2200) exitArcade(); return; }
+  const dir = (acKeys.right ? 1 : 0) - (acKeys.left ? 1 : 0);
+  if (dir !== 0) acHero.face = dir;
+  // 수평 이동 + 벽 충돌(단차 측면)
+  let nx = acHero.x + dir * A.moveSpeed * dt;
+  for (const b of acBlocks) {
+    if (acHero.y > b.top + 6 && nx > b.x0 - HW && nx < b.x1 + HW) {
+      if (acHero.x <= b.x0) nx = b.x0 - HW; else if (acHero.x >= b.x1) nx = b.x1 + HW;
+    }
+  }
+  acHero.x = Math.max(30, Math.min(A.worldW - 30, nx));
+  // 중력·착지
+  acHero.vy += A.gravity * dt; acHero.y += acHero.vy * dt;
+  const surf = acSurfaceAt(acHero.x);
+  if (acHero.y >= surf) { acHero.y = surf; acHero.vy = 0; acHero.onGround = true; } else acHero.onGround = false;
+  // 포즈
+  acHero.poseT -= dtMs;
+  if (acHero.poseT <= 0) { acHero.pose = !acHero.onGround ? 'jump' : (dir !== 0 ? 'run' : 'idle'); if (acHero.pose === 'run') acHero.run += dt * 0.4; }
+  acCam = Math.max(0, Math.min(A.worldW - W, acHero.x - W * 0.35));
+  if (acHero.x >= A.signX) { acWon = true; acEndT = 0; }
+  // 적 AI
+  for (const e of acEnemies) {
+    if (e.dead) { e.dead += dtMs; continue; }
+    if (e.hp <= 0) { e.dead = 1; continue; }
+    if (e.hitFx > 0) e.hitFx -= dtMs; if (e.guardFx > 0) e.guardFx -= dtMs;
+    if (e.knock !== 0) { e.x += e.knock * dt; e.knock *= 0.8; if (Math.abs(e.knock) < 0.4) e.knock = 0; }
+    e.splashes = e.splashes.filter(s => (s.t -= dtMs) > 0);
+    const dx = acHero.x - e.x, dist = Math.abs(dx); e.face = dx >= 0 ? 1 : -1;
+    if (e.state === 'tele') {
+      e.timer -= dtMs;
+      if (e.timer <= 0) { if (dist < A.enemyAtkRange + 24 && acHero.onGround) acHeroHurt(A.enemyDamage); e.state = 'idle'; e.timer = A.enemyAtkMinMs + Math.random() * (A.enemyAtkMaxMs - A.enemyAtkMinMs); }
+    } else if (dist < A.enemyAggro && dist > A.enemyAtkRange) { e.x += Math.sign(dx) * A.moveSpeed * 0.5 * dt; e.state = 'chase'; }
+    else if (dist <= A.enemyAtkRange) { e.timer -= dtMs; if (e.timer <= 0) { e.state = 'tele'; e.timer = A.enemyTeleMs; } }
+    else e.state = 'idle';
+  }
+}
+// 긋기 = 그 방향 베기. 앞쪽 근접 적 타격. 방패 고블린은 내려찍기(v_down)로만 방패 파괴.
+function acAttack(ev: StrokeEvent) {
+  if (ev.grade === 'miss') return;
+  const isSlam = ev.strokeId === 'v_down';
+  acHero.pose = isSlam ? 'slam' : 'slash'; acHero.poseT = 260;
+  const A = ACD();
+  let hitAny = false;
+  for (const e of acEnemies) {
+    if (e.hp <= 0) continue;
+    const dx = e.x - acHero.x;
+    if (Math.abs(dx) > A.meleeRange) continue;
+    if (Math.sign(dx) !== acHero.face && Math.abs(dx) > 40) continue;   // 바라보는 앞쪽만
+    if (e.shield && !isSlam) { e.guardFx = 240; feelShake(Math.round(FEEL().shakeHitPx * 0.6)); playBlock(); $('#acMsg').textContent = '방패에 막혔다 — 내려찍기(↓↓)로 부숴라!'; hitAny = true; continue; }
+    if (e.shield && isSlam) { e.shield = false; e.guardFx = 0; feelShake(FEEL().shakeArtPx); playHit(true); acShatter(e); $('#acMsg').textContent = '방패 파괴!'; }
+    const dmg = freeAttackDamage(ev.grade) + playerStats().power;
+    e.hp -= dmg; e.hitFx = 200; e.knock = acHero.face * (A.knockPx / 10);
+    e.splashes.push({ x: (Math.random() - 0.5) * 40, y: -60 - Math.random() * 40, t: 500, r: 10 + Math.random() * 14 });
+    feelHit(ev.grade, false); haptic(ev.grade); hitAny = true;
+    if (e.hp <= 0) { e.dead = 1; $('#acMsg').textContent = e.kind === 'shield' ? '방패 고블린 처치!' : '고블린 처치!'; }
+  }
+  if (!hitAny) $('#acMsg').textContent = '';
+}
+function acShatter(e: AcEnemy) { for (let i = 0; i < 8; i++) e.splashes.push({ x: (Math.random() - 0.5) * 80, y: -40 - Math.random() * 80, t: 600, r: 6 + Math.random() * 10 }); }
+
+$('#acLeft').addEventListener('pointerdown', e => { e.preventDefault(); acKeys.left = true; });
+$('#acLeft').addEventListener('pointerup', () => { acKeys.left = false; });
+$('#acLeft').addEventListener('pointerleave', () => { acKeys.left = false; });
+$('#acRight').addEventListener('pointerdown', e => { e.preventDefault(); acKeys.right = true; });
+$('#acRight').addEventListener('pointerup', () => { acKeys.right = false; });
+$('#acRight').addEventListener('pointerleave', () => { acKeys.right = false; });
+$('#acJump').addEventListener('pointerdown', e => { e.preventDefault(); acJump(); });
+$('#acExit').addEventListener('click', exitArcade);
+// ---- 아케이드 렌더(#ink 캔버스) ----
+function drawArcade() {
+  const A = ACD();
+  ctx.fillStyle = '#15120e'; ctx.fillRect(0, 0, W, H);
+  const bg = acSprites['bg_forest'];
+  if (bg) { drawBgLayer(bg, acCam * 0.22, 0.5); drawBgLayer(bg, acCam * 0.55, 0.85); }
+  ctx.fillStyle = '#241d14'; ctx.fillRect(0, acGroundY, W, H - acGroundY);
+  ctx.strokeStyle = 'rgba(201,168,106,.22)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, acGroundY + 1); ctx.lineTo(W, acGroundY + 1); ctx.stroke();
+  ctx.fillStyle = '#2c2318';
+  for (const b of acBlocks) { const sx = b.x0 - acCam; ctx.fillRect(sx, b.top, b.x1 - b.x0, H - b.top); ctx.fillStyle = 'rgba(201,168,106,.25)'; ctx.fillRect(sx, b.top, b.x1 - b.x0, 3); ctx.fillStyle = '#2c2318'; }
+  const signSx = A.signX - acCam;
+  if (signSx < W + 60 && signSx > -60) { ctx.fillStyle = '#6b5836'; ctx.fillRect(signSx - 4, acGroundY - 92, 8, 92); ctx.fillStyle = '#c9a86a'; ctx.fillRect(signSx - 34, acGroundY - 122, 68, 32); ctx.fillStyle = '#16130f'; ctx.font = 'bold 19px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('끝', signSx, acGroundY - 100); ctx.textAlign = 'left'; }
+  for (const e of acEnemies) {
+    if (e.dead && e.dead > 520) continue;
+    const sx = e.x - acCam; if (sx < -160 || sx > W + 160) continue;
+    const img = acSprites[e.kind === 'shield' ? 'enemy_shieldman' : 'enemy_goblin'];
+    let alpha = 1, dy = 0;
+    if (e.dead) { alpha = Math.max(0, 1 - e.dead / 520); dy = e.dead / 520 * 12; }
+    ctx.globalAlpha = alpha; if (e.hitFx > 0) ctx.filter = 'brightness(2.4) saturate(.3)';
+    drawAcSprite(img, sx, acGroundY + dy, A.enemyScale, e.face); ctx.filter = 'none'; ctx.globalAlpha = 1;
+    if (e.shield && e.guardFx > 0) { ctx.strokeStyle = 'rgba(140,176,208,.9)'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(sx - 24 * e.face, acGroundY - 78, 42, 0, Math.PI * 2); ctx.stroke(); }
+    if (e.state === 'tele' && !e.dead) { ctx.fillStyle = 'rgba(255,80,50,.95)'; ctx.font = 'bold 24px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('!', sx, acGroundY - 152); ctx.textAlign = 'left'; }
+    for (const s of e.splashes) { ctx.fillStyle = `rgba(18,14,11,${Math.max(0, s.t / 500) * 0.75})`; ctx.beginPath(); ctx.arc(sx + s.x, acGroundY + s.y, s.r, 0, Math.PI * 2); ctx.fill(); }
+    if (!e.dead) { const bw = 44; ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(sx - bw / 2, acGroundY - 166, bw, 4); ctx.fillStyle = '#9c2f26'; ctx.fillRect(sx - bw / 2, acGroundY - 166, bw * Math.max(0, e.hp / e.hpMax), 4); }
+  }
+  const poseImg = acSprites['hero_' + acHero.pose] || acSprites['hero_idle'];
+  const tilt = acHero.pose === 'run' ? Math.sin(acHero.run) * 5 : 0;
+  const bob = acHero.pose === 'run' ? Math.abs(Math.sin(acHero.run)) * -4 : 0;
+  ctx.globalAlpha = (performance.now() < acHero.invuln && Math.floor(performance.now() / 80) % 2 === 0) ? 0.4 : 1;
+  drawAcSprite(poseImg, acHero.x - acCam, acHero.y + bob, A.heroScale, acHero.face, tilt);
+  ctx.globalAlpha = 1;
+  if (acWon) { ctx.fillStyle = 'rgba(201,168,106,.95)'; ctx.font = 'bold 40px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('끝 — 도착!', W / 2, H * 0.4); ctx.textAlign = 'left'; }
+  if (acDead) { ctx.fillStyle = 'rgba(156,47,38,.95)'; ctx.font = 'bold 36px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('쓰러졌다…', W / 2, H * 0.4); ctx.textAlign = 'left'; }
+}
+function drawBgLayer(img: HTMLImageElement, offset: number, alpha: number) {
+  const dh = acGroundY, dw = img.width * (dh / img.height);
+  let x = -(((offset % dw) + dw) % dw); ctx.globalAlpha = alpha;
+  for (; x < W; x += dw) ctx.drawImage(img, x, 0, dw, dh);
+  ctx.globalAlpha = 1;
+}
+function drawAcSprite(img: HTMLImageElement | null, cx: number, footY: number, scale: number, face: number, tilt = 0) {
+  if (!img) { ctx.fillStyle = 'rgba(20,15,12,.6)'; ctx.fillRect(cx - 18, footY - 56, 36, 56); return; }
+  const w = img.width * scale, h = img.height * scale;
+  ctx.save(); ctx.translate(cx, footY); if (tilt) ctx.rotate(tilt * Math.PI / 180); ctx.scale(face, 1);
+  ctx.drawImage(img, -w / 2, -h, w, h); ctx.restore();
+}
+
 /* ---- T1-08 승급 시험(昇級) 씬 (DOM). 마나 각성: 4획 연속(≤2s)·평균70+·미스 즉시중단 ---- */
 const CUR_TRIAL = 'mana_awakening';
 let trialActive = false, trialIdx = 0, trialBusy = false;
@@ -1346,12 +1518,22 @@ const DIR_GLYPH: Record<Dir, string> = { L: '←', R: '→', U: '↑', D: '↓',
 const pressed = new Set<Dir>();
 const KEYMAP: Record<string, Dir> = { ArrowLeft: 'L', ArrowRight: 'R', ArrowUp: 'U', ArrowDown: 'D', a: 'L', d: 'R', w: 'U', s: 'D' };
 window.addEventListener('keydown', e => {
+  if (arcadeActive) {   // 아케이드: 방향키 이동 + 스페이스 점프 (검결 입력 아님)
+    if (e.key === 'ArrowLeft') { acKeys.left = true; e.preventDefault(); return; }
+    if (e.key === 'ArrowRight') { acKeys.right = true; e.preventDefault(); return; }
+    if (e.key === ' ' || e.key === 'ArrowUp') { acJump(); e.preventDefault(); return; }
+    return;
+  }
   const dir = KEYMAP[e.key];
   if (!dir || e.repeat || pressed.has(dir)) return;
   pressed.add(dir); pushCommandInput(dir);
   if (e.key.startsWith('Arrow')) e.preventDefault();
 });
-window.addEventListener('keyup', e => { const dir = KEYMAP[e.key]; if (dir) pressed.delete(dir); });
+window.addEventListener('keyup', e => {
+  if (e.key === 'ArrowLeft') acKeys.left = false;
+  if (e.key === 'ArrowRight') acKeys.right = false;
+  const dir = KEYMAP[e.key]; if (dir) pressed.delete(dir);
+});
 
 // (b) 가상 방향 패드
 const PAD_LEFT: Dir[] = ['UL', 'L', 'DL'];
@@ -1466,6 +1648,7 @@ function runSelfTest() {
   const ts = artTuneState();
   const curOverlay = ts.curCombat ? ts.overlayC : ts.overlayN;
   $('#diag').innerHTML = `<h4>자가진단 ${passed}/${T.length} 통과</h4>` +
+    `<div class="devrow"><button id="devArcade">[개발] ▶ 이동 스파이크 — 횡스크롤 검객</button></div>` +
     `<div class="devrow"><button id="devMomentum">[개발] ▶ 재설계 스파이크1 — 공격권(낭인검객)</button></div>` +
     `<div class="devrow"><button id="devSpike">[개발] ⚔ 스파이크 전투(늑대) 시작</button></div>` +
     `<div class="devrow"><button id="devStyle">[개발] 유파 전환 · 현재: ${currentStyle.name}</button></div>` +
@@ -1486,6 +1669,7 @@ function runSelfTest() {
   const ds = document.querySelector('#devStyle'); if (ds) ds.addEventListener('click', devToggleStyle);
   const dsp = document.querySelector('#devSpike'); if (dsp) dsp.addEventListener('click', () => { $('#diag').style.display = 'none'; ($('#btnDiag')).classList.remove('active'); enterSpike(); });
   const dmo = document.querySelector('#devMomentum'); if (dmo) dmo.addEventListener('click', () => { $('#diag').style.display = 'none'; ($('#btnDiag')).classList.remove('active'); enterMomentum(); });
+  const dac = document.querySelector('#devArcade'); if (dac) dac.addEventListener('click', () => { $('#diag').style.display = 'none'; ($('#btnDiag')).classList.remove('active'); enterArcade(); });
   const sh = document.querySelector('#shSlide') as HTMLInputElement | null;
   const hs = document.querySelector('#hsSlide') as HTMLInputElement | null;
   if (sh) sh.addEventListener('input', () => { feelShakeMul = parseFloat(sh.value); const e = document.querySelector('#shVal'); if (e) e.textContent = feelShakeMul.toFixed(2); });
