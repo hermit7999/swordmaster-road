@@ -54,7 +54,7 @@
     "kinds": {
       "encounter": { "hpMul": 0.7, "atkMinMs": 3600, "atkMaxMs": 6500, "windowMs": 1150 },
       "elite":     { "hpMul": 1.0, "atkMinMs": 3000, "atkMaxMs": 5500, "windowMs": 1050 },
-      "boss":      { "hpMul": 1.4, "atkMinMs": 2600, "atkMaxMs": 5000, "windowMs": 1000 }
+      "boss":      { "hpMul": 1.25, "atkMinMs": 2600, "atkMaxMs": 5000, "windowMs": 1000 }
     },
     "slowMo": { "windowMs": 1900, "scale": 0.4 }
   },

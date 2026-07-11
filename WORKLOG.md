@@ -409,3 +409,8 @@ OI-12(원무 커맨드 난이도)는 원무가 M1 범위라 M0 DoD 아님(보류
   · 버그 수정: 적 HP≤0 후 추가 획이 spEnd 재호출→보상 2배·afterScene 꼬임 → spEnd 진입 시 spikeActive=false 가드. (이 버그가 노드 미진행도 유발했음, 함께 해결.)
   · 검증(브라우저): 지도 조우→신 루프(고블린)·자유공격 −15·승리 보상 1회·노드 진행(b1→e1) / 보스→일섬귀·bossgate·시그니처 슬로모(class+필터+一閃 예고)·패배→체크포인트 / 아이템바·종류별 인트로. tsc 무경고·vitest 114/114·build OK·콘솔 에러 0.
   · 미완/주의: 구 #combat 패널 HTML/CSS는 사표(dead, display:none·일부 클래스는 #spike와 공유)로 잔존 — 별도 정리. 밸런스(적HP·데미지·창·feel)는 T2-08. 세부 체감 조정값은 사용자 미지정→현재값+자가진단 슬라이더.
+
+- 2026-07-11 [Claude] 전투 기본 밸런스 sanity + 구 #combat 사표 정리
+  · 밸런스 점검(명백한 이상값만): 데미지 체인 일관 확인(자유공격 기본10×등급0/.5/1/1.2/1.5 +위력, 아츠 18~60, 적공격 11~20, 플레이어 HP 60+10/Lv). 적 HP(×무게): 조우 63·정예 104. 결전만 179→작은 자유타로 슬로그라 hpMul 1.4→1.25(160)로 하향. 공격간격·응수창(1000~1150ms)은 상식선 유지. (본 튜닝은 사용자 완주 후 T2-08.)
+  · 사표 제거: 구 결전 #combat 패널 HTML 전체 삭제 + #cb* 전용 CSS(#cbPhase/#cbTele/#cbLog/#cbExit/#cbEnemyArt/#cbSplash/#cbItems/.cbItem/enemyHit 등) 삭제. 공용 클래스(.cbRow/.hpbar/.hpfill/.mpbar/.mpfill/@keyframes splash)와 #playerHud는 #spike가 쓰므로 보존. #btnCombat은 신 루프 자유연습 진입.
+  · 검증(브라우저): 부팅 타이틀 정상·#combat 제거 확인·조우 신 루프(고블린 −15·아이템바) 정상. tsc 무경고·vitest 114/114·build OK(번들 동일)·콘솔 에러 0.

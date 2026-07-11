@@ -105,22 +105,7 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
 #trainExit { font-size: 11px; color: var(--bone); background: var(--panel); border: 1px solid var(--line);
   border-radius: 7px; padding: 4px 10px; cursor: pointer; pointer-events: auto; }
 
-/* 결전(決戰) 전투 오버레이 */
-#combat { position: absolute; top: 44px; left: 50%; transform: translateX(-50%); z-index: 22; pointer-events: none;
-  display: none; flex-direction: column; gap: 6px; width: min(440px, 84%);
-  background: rgba(22,19,15,.9); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
-#combat.on { display: flex; }
-#cbEnemyArt { position: relative; width: 100%; height: 128px; border-radius: 10px; overflow: hidden;
-  background-size: cover; background-position: center top; background-repeat: no-repeat; display: none;
-  border: 1px solid var(--line); }
-#cbEnemyArt.on { display: block; }
-#cbEnemyArt.hit { animation: enemyHit var(--hitms, 200ms) ease; }
-@keyframes enemyHit { 0% { filter: brightness(2.6) saturate(.3); } 40% { filter: brightness(1); } 100% { filter: brightness(1); } }
-#cbSplash { position: absolute; inset: 0; opacity: 0; pointer-events: none;
-  background: radial-gradient(closest-side, rgba(20,15,12,.0) 30%, rgba(20,15,12,.85) 55%, rgba(20,15,12,0) 62%),
-              radial-gradient(closest-side, rgba(20,15,12,.9) 22%, rgba(20,15,12,0) 42%); background-repeat: no-repeat;
-  background-position: 60% 40%, 35% 62%; background-size: 70% 70%, 45% 45%; }
-#cbSplash.play { animation: splash var(--hitms, 200ms) ease-out; }
+/* 전투 HUD 공용 요소(#spike 등에서 사용): HP/마나 바, 잉크 스플래시 애니 */
 @keyframes splash { 0% { opacity: 0; transform: scale(.6); } 25% { opacity: .95; } 100% { opacity: 0; transform: scale(1.25); } }
 .cbRow { display: flex; align-items: center; gap: 8px; font-size: 12px; }
 .cbRow span { width: 18px; opacity: .85; }
@@ -128,16 +113,6 @@ html, body { margin: 0; height: 100%; background: var(--ink); color: var(--bone)
 .hpfill { height: 100%; width: 100%; background: #7fb98a; transition: width .25s ease; }
 .hpfill.enemy { background: var(--blood); }
 .mpbar { height: 7px; } .mpfill { height: 100%; width: 40%; background: var(--gold); transition: width .25s ease; }
-#cbPhase { font-size: 16px; font-weight: 800; color: var(--gold); text-align: center; }
-#cbTele { font-size: 13px; text-align: center; color: var(--bone); min-height: 18px; }
-#cbLog { font-size: 12px; text-align: center; opacity: .8; min-height: 16px; }
-#cbExit { align-self: center; font-size: 11px; color: var(--bone); background: var(--panel); border: 1px solid var(--line);
-  border-radius: 7px; padding: 4px 10px; cursor: pointer; margin-top: 2px; pointer-events: auto; }
-#cbItems { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; min-height: 20px; }
-.cbItem { font-size: 11px; color: var(--gold); background: var(--panel); border: 1px solid var(--gold);
-  border-radius: 7px; padding: 3px 8px; cursor: pointer; pointer-events: auto; }
-.cbItem:disabled { opacity: .35; border-color: var(--line); color: var(--bone); cursor: default; }
-.cbNoItem { font-size: 10px; opacity: .4; }
 #playerHud { font-size: 11px; color: var(--gold); opacity: .9; margin-top: 4px; white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 
