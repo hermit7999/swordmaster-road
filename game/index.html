@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>소드마스터의 길</title>
+  <style>
+    /* [프로토타입 교훈 / CLAUDE.md 규칙 8]
+       화면 전체가 검로 제스처 영역. 브라우저 기본 제스처 차단. */
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #111; }
+    #app { width: 100%; height: 100%; touch-action: none; }
+    #app canvas { touch-action: none; }
+    /* 세로 화면 회전 안내 (모바일 — 프로토타입 기능 이식) */
+    #rotate {
+      display: none; position: fixed; inset: 0; z-index: 99;
+      background: #111; color: #e8dcc0; text-align: center;
+      flex-direction: column; justify-content: center; gap: 12px;
+      font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    }
+    #rotate .icon { font-size: 52px; }
+    @media (orientation: portrait) { #rotate { display: flex; } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="rotate"><div class="icon">⟳</div><div>휴대폰을 가로로 돌려주세요</div></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

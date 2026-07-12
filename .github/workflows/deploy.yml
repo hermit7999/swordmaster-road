@@ -25,6 +25,15 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # 신규 게임 (game/) 빌드 → /game 하위 경로로 병행 배포
+      # (vite build 직접 실행 — tsc 게이트는 QA-01에서 CI 정비 후 활성화)
+      - run: npm ci
+        working-directory: game
+      - run: npx vite build
+        working-directory: game
+      - run: |
+          mkdir -p dist/game
+          cp -r game/dist/* dist/game/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
