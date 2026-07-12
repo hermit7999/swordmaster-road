@@ -19,8 +19,8 @@ let soundOn = true, overlayOn = true;
 // T2-07 설정(전역, 저장과 별도 키). 판정난이도=전투 응수창 배율, 대화속도=자동진행 배율, 가상키크기=패드 스케일.
 let hapticOn = true, difficultyEase = 1, dlgSpeedMul = 1;
 const SETTINGS_KEY = 'sm_settings_v1';
-const settings: { sound: boolean; haptic: boolean; difficulty: string; dlgSpeed: string; padSize: string } =
-  { sound: true, haptic: true, difficulty: 'standard', dlgSpeed: 'normal', padSize: 'normal' };
+const settings: { sound: boolean; haptic: boolean; difficulty: string; dlgSpeed: string; padSize: string; jumpMode: string } =
+  { sound: true, haptic: true, difficulty: 'standard', dlgSpeed: 'normal', padSize: 'normal', jumpMode: 'button' };
 function applySettings() {
   soundOn = settings.sound; hapticOn = settings.haptic;
   difficultyEase = BALANCE.difficultyEase[settings.difficulty] ?? 1;
@@ -913,6 +913,7 @@ const acKeys = { left: false, right: false };
 let acStickId: number | null = null, acMoveX = 0, acStickUp = false, acStickDownT = 0;
 const acStickOrg = { x: 0, y: 0 }, acStickCur = { x: 0, y: 0 };
 let acSlashId: number | null = null, acSlashT0 = 0, acSlashPts: Pt[] = [];
+let acMoveGrace = 0, acLastMoveX = 0;   // 스틱 뗀 뒤 이동 관성 유예("달리다 점프")
 const padK = () => (BALANCE.padScale[settings.padSize] ?? 1);
 const HW = 30;   // 히어로 반폭(벽 충돌)
 
@@ -970,8 +971,11 @@ function acHud() { ($('#acHpFill')).style.width = Math.max(0, acHero.hp / ACD().
 function acUpdate(dtMs: number) {
   const dt = Math.min(2.5, dtMs / 16.67), A = ACD();
   if (acWon || acDead) { acEndT += dtMs; if (acEndT > 2200) exitArcade(); return; }
-  // 이동: 조이스틱(연속 -1..1) 활성 시 우선, 아니면 키보드
-  const dir = acStickId !== null ? acMoveX : ((acKeys.right ? 1 : 0) - (acKeys.left ? 1 : 0));
+  // 이동: 조이스틱(연속 -1..1) 우선 → 유예(스틱 뗀 직후 관성) → 키보드
+  let dir: number;
+  if (acStickId !== null) dir = acMoveX;
+  else if (performance.now() < acMoveGrace) dir = acLastMoveX;
+  else dir = (acKeys.right ? 1 : 0) - (acKeys.left ? 1 : 0);
   if (Math.abs(dir) > 0.05) acHero.face = dir > 0 ? 1 : -1;
   // 수평 이동 + 벽 충돌(단차 측면)
   let nx = acHero.x + dir * A.moveSpeed * dt;
@@ -998,7 +1002,7 @@ function acUpdate(dtMs: number) {
     if (e.hitFx > 0) e.hitFx -= dtMs; if (e.guardFx > 0) e.guardFx -= dtMs;
     if (e.knock !== 0) { e.x += e.knock * dt; e.knock *= 0.8; if (Math.abs(e.knock) < 0.4) e.knock = 0; }
     e.splashes = e.splashes.filter(s => (s.t -= dtMs) > 0);
-    const dx = acHero.x - e.x, dist = Math.abs(dx); e.face = dx >= 0 ? 1 : -1;
+    const dx = acHero.x - e.x, dist = Math.abs(dx); e.face = dx >= 0 ? -1 : 1;   // 적 스프라이트=왼쪽 기본 → 플레이어 마주보게 반전
     if (e.state === 'tele') {
       e.timer -= dtMs;
       if (e.timer <= 0) { if (dist < A.enemyAtkRange + 24 && acHero.onGround) acHeroHurt(A.enemyDamage); e.state = 'idle'; e.timer = A.enemyAtkMinMs + Math.random() * (A.enemyAtkMaxMs - A.enemyAtkMinMs); }
@@ -1100,11 +1104,16 @@ function acShatter(e: AcEnemy) { for (let i = 0; i < 8; i++) e.splashes.push({ x
 $('#acExit').addEventListener('click', exitArcade);
 
 // ---- 트윈스틱(모바일) 입력: 터치 포인터만 좌/우 분기. 마우스는 기존 제스처(PC) 유지 ----
-function acResetTouch() { acStickId = null; acSlashId = null; acMoveX = 0; acStickUp = false; acSlashPts = []; }
+function acResetTouch() { acStickId = null; acSlashId = null; acMoveX = 0; acStickUp = false; acSlashPts = []; acMoveGrace = 0; }
 function acTouchDown(e: PointerEvent) {
   gRect = canvas.getBoundingClientRect();
   const half = window.innerWidth / 2;
-  if (e.clientX < half) {                          // 좌반 = 가상 조이스틱
+  if (e.clientX < half) {                          // 좌반: 상단=점프 버튼 / 하단=이동 스틱
+    if (settings.jumpMode === 'button' && e.clientY < window.innerHeight * ACD().jumpZoneFrac) {
+      acJump();                                    // 점프 버튼 탭(빠른 재탭=2단, acJump가 지상/공중 처리)
+      try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* noop */ }
+      return;
+    }
     if (acStickId !== null) return;
     acStickId = e.pointerId;
     acStickOrg.x = e.clientX; acStickOrg.y = e.clientY;
@@ -1124,17 +1133,22 @@ function acTouchMove(e: PointerEvent) {
     const dx = acStickCur.x - acStickOrg.x, dy = acStickCur.y - acStickOrg.y;
     const rad = A.stickRadius * k, dead = A.stickDead * k;
     acMoveX = Math.abs(dx) < dead ? 0 : Math.max(-1, Math.min(1, dx / rad));
-    if (dy < -rad * A.jumpSwipeFrac && !acStickUp) { acStickUp = true; acJump(); }   // 스와이프 업 = 점프
-    else if (dy > -rad * A.jumpSwipeFrac * 0.4) acStickUp = false;                    // 엄지 내려오면 재점프(2단) 가능
+    if (settings.jumpMode === 'flick') {   // 대안: 스틱 위 플릭=점프(설정 토글)
+      if (dy < -rad * A.jumpSwipeFrac && !acStickUp) { acStickUp = true; acJump(); }
+      else if (dy > -rad * A.jumpSwipeFrac * 0.4) acStickUp = false;
+    }
   } else if (e.pointerId === acSlashId) {
     acSlashPts.push({ x: relX(e), y: relY(e), t: performance.now() - acSlashT0 });
   }
 }
 function acTouchUp(e: PointerEvent) {
   if (e.pointerId === acStickId) {
-    const held = performance.now() - acStickDownT;
-    const moved = Math.hypot(acStickCur.x - acStickOrg.x, acStickCur.y - acStickOrg.y);
-    if (held < 220 && moved < ACD().stickDead * padK() * 1.6 && !acStickUp) acJump();   // 짧은 탭 = 점프
+    if (settings.jumpMode === 'flick') {   // 플릭 모드에선 스틱 짧은 탭도 점프
+      const held = performance.now() - acStickDownT;
+      const moved = Math.hypot(acStickCur.x - acStickOrg.x, acStickCur.y - acStickOrg.y);
+      if (held < 220 && moved < ACD().stickDead * padK() * 1.6 && !acStickUp) acJump();
+    }
+    acLastMoveX = acMoveX; acMoveGrace = performance.now() + ACD().moveGrace;   // 이동 유예("달리다 점프")
     acStickId = null; acMoveX = 0; acStickUp = false;
   } else if (e.pointerId === acSlashId) {
     const pts = acSlashPts; acSlashId = null; acSlashPts = []; liveTrail = null;
@@ -1157,13 +1171,14 @@ function acFinishSlash(pts: Pt[]) {   // 검격 존 긋기 → 판정(존 크기
 function drawArcade() {
   const A = ACD();
   ctx.fillStyle = '#15120e'; ctx.fillRect(0, 0, W, H);   // 하늘(줌 영향 없음)
-  const zoom = acZoom;
   ctx.save();
-  if (zoom !== 1) { const fx = acFx.focusX - acCam, fy = acFx.focusY; ctx.translate(fx, fy); ctx.scale(zoom, zoom); ctx.translate(-fx, -fy); }
+  const base = AC_TOUCH ? A.mobileZoom : 1;   // 모바일 카메라 줌 아웃 → 캐릭터 작게(지면 중심 기준)
+  if (base !== 1) { ctx.translate(W / 2, acGroundY); ctx.scale(base, base); ctx.translate(-W / 2, -acGroundY); }
+  if (acZoom !== 1) { const fx = acFx.focusX - acCam, fy = acFx.focusY; ctx.translate(fx, fy); ctx.scale(acZoom, acZoom); ctx.translate(-fx, -fy); }
   const bg = acSprites['bg_forest'];
   if (bg) { drawBgLayer(bg, acCam * 0.22, 0.5); drawBgLayer(bg, acCam * 0.55, 0.85); }
-  ctx.fillStyle = '#241d14'; ctx.fillRect(0, acGroundY, W, H - acGroundY);
-  ctx.strokeStyle = 'rgba(201,168,106,.22)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, acGroundY + 1); ctx.lineTo(W, acGroundY + 1); ctx.stroke();
+  ctx.fillStyle = '#241d14'; ctx.fillRect(-W, acGroundY, 3 * W, H - acGroundY);   // 줌 아웃 시 가장자리 여백 방지 위해 넓게
+  ctx.strokeStyle = 'rgba(201,168,106,.22)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-W, acGroundY + 1); ctx.lineTo(2 * W, acGroundY + 1); ctx.stroke();
   ctx.fillStyle = '#2c2318';
   for (const b of acBlocks) { const sx = b.x0 - acCam; ctx.fillRect(sx, b.top, b.x1 - b.x0, H - b.top); ctx.fillStyle = 'rgba(201,168,106,.25)'; ctx.fillRect(sx, b.top, b.x1 - b.x0, 3); ctx.fillStyle = '#2c2318'; }
   const signSx = A.signX - acCam;
@@ -1225,6 +1240,13 @@ function acDrawControls() {
   ctx.beginPath(); ctx.arc(rcx, rcy, ringR, 0, Math.PI * 2); ctx.stroke();
   ctx.strokeStyle = 'rgba(201,168,106,.07)';
   ctx.beginPath(); ctx.arc(rcx, rcy, ringR * 0.62, 0, Math.PI * 2); ctx.stroke();
+  if (settings.jumpMode === 'button') {   // 좌상단 점프 버튼(탭·재탭=2단)
+    const jr = A.jumpBtnR * k, jx = W * 0.14, jy = H * 0.24;
+    ctx.strokeStyle = 'rgba(201,168,106,.18)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(jx, jy, jr, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(230,220,195,.34)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(jx - jr * 0.34, jy + jr * 0.16); ctx.lineTo(jx, jy - jr * 0.3); ctx.lineTo(jx + jr * 0.34, jy + jr * 0.16); ctx.stroke();
+  }
   if (acStickId !== null) {
     const sr = A.stickRadius * k;
     let dx = acStickCur.x - acStickOrg.x, dy = acStickCur.y - acStickOrg.y;
@@ -1247,8 +1269,8 @@ function acDrawSplit(img: HTMLImageElement | null, sx: number, footY: number, sc
 }
 function drawBgLayer(img: HTMLImageElement, offset: number, alpha: number) {
   const dh = acGroundY, dw = img.width * (dh / img.height);
-  let x = -(((offset % dw) + dw) % dw); ctx.globalAlpha = alpha;
-  for (; x < W; x += dw) ctx.drawImage(img, x, 0, dw, dh);
+  let x = -dw - (((offset % dw) + dw) % dw); ctx.globalAlpha = alpha;   // 한 타일 앞·뒤로 더 그려 줌 아웃 여백 방지
+  for (; x < W + dw; x += dw) ctx.drawImage(img, x, 0, dw, dh);
   ctx.globalAlpha = 1;
 }
 function drawAcSprite(img: HTMLImageElement | null, cx: number, footY: number, scale: number, face: number, tilt = 0) {
@@ -1913,6 +1935,7 @@ const SET_OPTS: Record<string, [string, string][]> = {
   difficulty: [['standard', '표준'], ['lenient', '관대']],
   dlgSpeed: [['slow', '느림'], ['normal', '보통'], ['fast', '빠름']],
   padSize: [['small', '작게'], ['normal', '보통'], ['large', '크게']],
+  jumpMode: [['button', '점프 버튼'], ['flick', '스틱 플릭']],
 };
 function curSet(key: string): string {
   if (key === 'sound') return settings.sound ? 'on' : 'off';

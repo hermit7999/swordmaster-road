@@ -75,7 +75,8 @@
     "goblinHp": 22, "shieldHp": 34, "knockPx": 70, "hitInvulnMs": 650, "signX": 3050,
     "kiMax": 100, "kiPerHit": 14, "kiDamage": 40, "kiSpeed": 20, "kiLifeMs": 1100, "kiRange": 90,
     "finishSlowScale": 0.3, "finishSlowMs": 240, "finishZoom": 1.32, "finishDurMs": 760,
-    "stickRadius": 92, "stickDead": 16, "jumpSwipeFrac": 0.85, "slashRingRadius": 150
+    "stickRadius": 92, "stickDead": 16, "jumpSwipeFrac": 0.85, "slashRingRadius": 150,
+    "mobileZoom": 0.72, "moveGrace": 150, "jumpZoneFrac": 0.48, "jumpBtnR": 46
   },
   "swordWave": { "range": 0 },
   "momentum": {

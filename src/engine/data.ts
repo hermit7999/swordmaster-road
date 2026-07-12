@@ -80,6 +80,7 @@ export interface Balance {
     kiMax: number; kiPerHit: number; kiDamage: number; kiSpeed: number; kiLifeMs: number; kiRange: number;
     finishSlowScale: number; finishSlowMs: number; finishZoom: number; finishDurMs: number;
     stickRadius: number; stickDead: number; jumpSwipeFrac: number; slashRingRadius: number;
+    mobileZoom: number; moveGrace: number; jumpZoneFrac: number; jumpBtnR: number;
   };
   swordWave: { range: number };
   momentum: {
