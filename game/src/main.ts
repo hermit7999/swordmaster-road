@@ -7,6 +7,7 @@ import { realClock } from './input/core.ts';
 import { GesturePipeline, type SkillResolved } from './game/pipeline.ts';
 import { GestureEngine } from './gesture/engine.ts';
 import { DEFAULT_GESTURES, LEFT_GESTURES } from './gesture/templates.ts';
+import { DialogueScene } from './story/DialogueScene.ts';
 import { SkillExecutor } from './skill/machine.ts';
 import { getSkill } from './skill/data.ts';
 import {
@@ -38,14 +39,6 @@ function isLefty(): boolean {
     return localStorage.getItem('sm.lefty.v1') === '1';
   } catch {
     return false;
-  }
-}
-
-function setLefty(v: boolean): void {
-  try {
-    localStorage.setItem('sm.lefty.v1', v ? '1' : '0');
-  } catch {
-    /* 무시 */
   }
 }
 
@@ -202,6 +195,14 @@ class PlayScene extends Phaser.Scene {
 
     this.trailGfx = this.add.graphics().setDepth(50).setScrollFactor(0);
     this.touchUiGfx = this.add.graphics().setDepth(75).setScrollFactor(0);
+    // 터치 기기면 첫 터치 전부터 조작 UI 표시 (실기 버그 2026-07-12: 로드 직후 안 보임)
+    this.isTouch = (navigator.maxTouchPoints ?? 0) > 0 || 'ontouchstart' in window;
+    if (this.isTouch) {
+      this.add.text(W * 0.22, H * 0.52, '← 왼손\n이동·점프', { fontFamily: FONT, fontSize: '15px', color: '#c9a86a', align: 'center' })
+        .setOrigin(0.5).setAlpha(0.4).setDepth(74).setScrollFactor(0);
+      this.add.text(W * 0.72, H * 0.55, '오른손\n검격', { fontFamily: FONT, fontSize: '15px', color: '#c9a86a', align: 'center' })
+        .setOrigin(0.5).setAlpha(0.4).setDepth(74).setScrollFactor(0);
+    }
 
     // 트윈스틱 시각화 + 터치 회피 버튼 (프로토타입 acDrawControls 이식)
     const DODGE_BX = W * 0.13;
@@ -1066,10 +1067,10 @@ class PlayScene extends Phaser.Scene {
     this.touchUiGfx.clear();
     if (this.isTouch) {
       const g = this.touchUiGfx;
-      // 우측 검격 존 가이드 링
-      g.lineStyle(2, 0xc9a86a, 0.13);
+      // 우측 검격 존 가이드 링 (더 진하게 — 실기 가시성)
+      g.lineStyle(2.5, 0xc9a86a, 0.3);
       g.strokeCircle(W * 0.72, H * 0.55, 118);
-      g.lineStyle(2, 0xc9a86a, 0.07);
+      g.lineStyle(2, 0xc9a86a, 0.16);
       g.strokeCircle(W * 0.72, H * 0.55, 118 * 0.62);
       // 좌상단 회피 버튼 (원 + « 기호)
       const bx = W * 0.13;
@@ -1169,15 +1170,7 @@ class TitleScene extends Phaser.Scene {
       onRepeat: () => (ghostTrail.width = 4),
     });
 
-    // 유파 선택 (프로토타입 이식): 좌수검/우수검 토글
-    const handText = this.add.text(W - 20, H - 24, `검 쥔 손: ${lefty ? '좌수검류' : '우수검류'} (탭하여 변경)`, {
-      fontFamily: FONT, fontSize: '13px', color: '#8a7a5a',
-    }).setOrigin(1, 0.5).setInteractive({ useHandCursor: true });
-    handText.on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, ev: Phaser.Types.Input.EventData) => {
-      ev.stopPropagation(); // 긋기 수집과 충돌 방지
-      setLefty(!lefty);
-      this.scene.restart();
-    });
+    // (유파 선택은 프롤로그 대화에서 — 프로토타입 흐름)
 
     this.trailGfx = this.add.graphics().setDepth(50);
 
@@ -1219,7 +1212,14 @@ class TitleScene extends Phaser.Scene {
       this.tweens.add({ targets: this.titleText, y: this.titleText.y - 14, angle: -2, alpha: 0.9, duration: 300 });
       this.cameras.main.fadeOut(450, 0, 0, 0);
     });
-    this.time.delayedCall(700, () => this.scene.start('play'));
+    // 프롤로그를 이미 봤으면 건너뛰고 바로 게임 (반복 플레이 배려 — 프로토타입 seenDialogues)
+    let seen = false;
+    try {
+      seen = localStorage.getItem('sm.prologue.v1') === '1';
+    } catch {
+      /* 무시 */
+    }
+    this.time.delayedCall(700, () => this.scene.start(seen ? 'play' : 'dialogue'));
   }
 
   override update(): void {
@@ -1241,5 +1241,5 @@ new Phaser.Game({
   height: H,
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   backgroundColor: '#151515',
-  scene: [TitleScene, PlayScene],
+  scene: [TitleScene, DialogueScene, PlayScene],
 });
