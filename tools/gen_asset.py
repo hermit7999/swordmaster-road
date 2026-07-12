@@ -107,22 +107,45 @@ def wait_for_gpu(min_free: int, wait_s: int, poll_s: int = 12) -> bool:
         time.sleep(poll_s)
 
 
+# ---------------- 톤 매칭 후처리(기존 세트 팔레트로 수렴) ----------------
+# 목표: 더 어둡게 + 채도 크게 낮춤 + 명암 대비 무겁게 + 뼈빛(bone-ivory) 하이라이트.
+def tone_match(img, sat: float, bright: float, contrast: float,
+               tint=(214, 201, 170), tint_amt: float = 0.10):
+    from PIL import Image, ImageEnhance
+    im = img.convert("RGB")
+    im = ImageEnhance.Color(im).enhance(sat)          # 채도 낮춤
+    im = ImageEnhance.Brightness(im).enhance(bright)  # 어둡게
+    im = ImageEnhance.Contrast(im).enhance(contrast)  # 명암 대비 무겁게
+    if tint_amt > 0:                                  # 밝은 영역에 뼈빛 스플릿톤
+        ov = Image.new("RGB", im.size, tint)
+        mask = im.convert("L")
+        im = Image.composite(Image.blend(im, ov, tint_amt), im, mask)
+    return im
+
+
 # ---------------- 모서리색 누끼 ----------------
-def nuki(img, tol: int) -> "Image.Image":
-    """네 모서리에서 flood-fill로 배경(연결된 단색)만 투명화 → 알파 bbox 크롭."""
+def _cdist(a, b):
+    return abs(a[0] - b[0]) + abs(a[1] - b[1]) + abs(a[2] - b[2])
+
+
+def nuki(img, tol: int, key_global: bool = False) -> "Image.Image":
+    """모서리 flood-fill로 연결된 배경 투명화. key_global=True면 배경색과 가까운
+    화소를 전역 제거(잉크 튀김에 갇힌 안쪽 배경 헤일로까지 제거)."""
     from PIL import Image, ImageDraw
     rgb = img.convert("RGB")
     W, H = rgb.size
     work = rgb.copy()
     MARK = (255, 0, 255)
-    for corner in [(0, 0), (W - 1, 0), (0, H - 1), (W - 1, H - 1)]:
-        ImageDraw.floodfill(work, corner, MARK, thresh=tol)
+    cs = [(0, 0), (W - 1, 0), (0, H - 1), (W - 1, H - 1)]
+    bg = tuple(sum(rgb.getpixel(c)[i] for c in cs) // 4 for i in range(3))   # 배경색(모서리 평균)
+    for c in cs:
+        ImageDraw.floodfill(work, c, MARK, thresh=tol)
     rgba = rgb.convert("RGBA")
-    wp = work.load()
-    rp = rgba.load()
+    wp = work.load(); rp = rgba.load()
+    gtol = tol * 1.6
     for y in range(H):
         for x in range(W):
-            if wp[x, y] == MARK:
+            if wp[x, y] == MARK or (key_global and _cdist(rgb.getpixel((x, y)), bg) < gtol):
                 r, g, b, _ = rp[x, y]
                 rp[x, y] = (r, g, b, 0)
     bbox = rgba.getbbox()
@@ -177,7 +200,12 @@ def main():
     ap.add_argument("--steps", type=int, default=None, help="미지정 시 모드별 기본(LCM/인페인트 8, txt2img 24)")
     ap.add_argument("--guidance", type=float, default=None, help="미지정 시 모드별 기본(LCM/인페인트 1.8, txt2img 7.0)")
     ap.add_argument("--bg-color", default="58,58,66", help="init/단색배경 R,G,B")
-    ap.add_argument("--nuki-tol", type=int, default=40, help="누끼 flood-fill 허용오차")
+    ap.add_argument("--nuki-tol", type=int, default=52, help="누끼 flood-fill 허용오차")
+    ap.add_argument("--key-global", action="store_true", help="배경색 전역 제거(헤일로 제거, 캐릭터 침식 주의)")
+    ap.add_argument("--no-tone", action="store_true", help="톤 매칭 후처리 끄기")
+    ap.add_argument("--sat", type=float, default=0.5, help="톤: 채도 배율(<1 낮춤)")
+    ap.add_argument("--bright", type=float, default=0.86, help="톤: 밝기 배율(<1 어둡게)")
+    ap.add_argument("--contrast", type=float, default=1.2, help="톤: 대비 배율(>1 무겁게)")
     ap.add_argument("--min-free", type=int, default=3200, help="필요 여유 VRAM(MiB)")
     ap.add_argument("--wait", type=int, default=240, help="GPU 점유 시 최대 대기(s)")
     args = ap.parse_args()
@@ -274,10 +302,12 @@ def main():
             tag = f"_ip{str(scale).replace('.', '')}" if multi else ""
             t = time.time()
             out = run(scale)
+            if not args.no_tone:                       # 톤 매칭: 세트 팔레트로 수렴
+                out = tone_match(out, args.sat, args.bright, args.contrast)
             dt = time.time() - t
             raw_path = RAW_DIR / f"{args.name}{tag}.png"
             out.save(raw_path)
-            cut = nuki(out, args.nuki_tol)
+            cut = nuki(out, args.nuki_tol, key_global=args.key_global)
             nuki_path = NUKI_DIR / f"{args.name}{tag}.webp"
             cut.save(nuki_path, "WEBP", quality=92, method=6)
             vram = torch.cuda.max_memory_allocated() / 1e9

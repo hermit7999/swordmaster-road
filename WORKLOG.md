@@ -486,3 +486,10 @@ OI-12(원무 커맨드 난이도)는 원무가 M1 범위라 M0 DoD 아님(보류
   · #2 검기 사거리 버그(뒤쪽·화면밖 적 전멸): 참격 히트를 발사 전방(sign)+사거리 내(launchX 기준)+화면(뷰포트) 내로 한정. balance.swordWave.range 노출(기본 0=화면 폭). AcProj에 launchX 추가.
   · #3 우하단 빈 갈색 패널 = #acJump 버튼(⤴, 브라운 원, 폰서 글리프 안 뜨면 빈 패널로 보임). #1의 acBtn 제거로 함께 소멸(별도 조치 불필요, DOM 쿼리로 확인).
   · tsc 무경고·vitest 118·build OK. **라이브 터치 검증은 환경 한계로 불가**(검증 탭 백그라운드=RAF 정지, 프리뷰 페인 innerWidth=0). 이벤트 전달·pointerType='touch' 도달은 확인. #1 실기 감각은 사용자 폰 재판정.
+
+- 2026-07-12 [Claude] 아트 Inkpunk 톤 수렴 + 후처리 + 비교샷 + 주인공 일관성 관문.
+  · 톤 프롬프트(77토큰 내, 배경 지시 앞쪽 배치): "plain flat grey background, dark muted palette, heavy shadows, desaturated bone ivory, bold black ink".
+  · gen_asset 톤 매칭 후처리(tone_match): 채도↓(--sat 0.5)+어둡게(--bright 0.86)+대비↑(--contrast 1.2)+뼈빛 스플릿톤 → 세트 팔레트로 수렴. 프롬프트로 안 잡히는 갭을 여기서 잡음.
+  · 누끼 개선: --key-global(배경색 전역 제거, gtol=tol*1.6)로 잉크튀김에 갇힌 안쪽 헤일로까지 제거. --nuki-tol 기본 40→52. tools/compare_shot.py(스프라이트 나란히 합성) 신규.
+  · 결과: enemy_archer_ink2(ip0.65) — 톤 확 수렴(어둡고 무거운 잉크), 누끼 깨끗. 비교샷(고블린·방패고블린·궁수 나란히, tools/out/compare_archer.png): 라인·비율·다크판타지 일치로 같은 필드에 자연스러움. 단 신규가 기존 초록 고블린보다 약간 그레이/차가움(sat 더 죽인 결과) — sat 0.65로 초록기 복원 가능.
+  · **주인공 일관성 관문 통과**: portrait_hero를 IP-Adapter 참조(anchor=person, ip 0.7·0.9)로 주인공 대기자세 생성 → 참조와 **동일 인물**(검은 스파이크 머리·흉터 얼굴·회색 후드 스카프·카타나) 재현. 로컬 파이프라인이 신규 몬스터+주인공 모두 일관 생성 가능 → 전체 통일 재생성 논의 가능(혼합 운영 불필요). 최종 채택·확장은 사용자 판정.
