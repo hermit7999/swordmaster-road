@@ -5,6 +5,12 @@
 
 ---
 
+- 2026-07-13 [Claude] 신규 엔진(game/) 채택 판단 + 빌드 픽스 + 아트 이식 견적. 사용자 지시: 다른 에이전트가 GDD 기반으로 game/에 만든 로그라이트 아케이드 듀얼 엔진을 실제 게임으로 삼고 우리 아트를 이식.
+  · game/ = Phaser 렌더 + 순수 TS 로직(모듈: input/duel/combat/boss/enemy/meta/stage/skill/gesture/growth/story), **npm test 191종 PASS**. "M-D Stage1 완주 빌드"(웨이브→성장3택→미니보스→보스관문→Duel→정산). docs/new_docs에 GDD v0.2~v3.5.
+  · **빌드 픽스(배포 가능화)**: game/tsconfig에 allowImportingTsExtensions 추가 + 테스트파일 tsc 제외 + manager.ts 미사용 import 제거 → `npm run build` 통과(dist 생성, Phaser 번들 1.58MB/gzip 372KB). 기존엔 tsc 설정 누락으로 build 깨져 있었음(dev만 됨).
+  · **아트 견적**: 렌더가 100% Phaser 도형 플레이스홀더(load.image 0). 필요 아트 = 주인공1 + 적12(잡병·창병·들개·궁수·쾌검사·방패병·쌍검사·중갑귀·광전사·주술사·그림자검사·정예기사) + 미니보스5(산적두목·사냥꾼·쌍둥이검사·파성귀·검문수문장) + 보스5(갈퇴·홍련무희·철벽거암·그림자무영·검성흑월) + 배경5(산길·대나무숲·성·…) ≈ 28캐릭터+5배경. 신 로스터는 인간형(우리 기존 고블린과 1:1 매핑 안 됨→신규 생성). Inkpunk 파이프라인으로 생성 가능(몬스터·주인공 일관성 실증됨).
+  · 미완/대기: 배포 배관(base '/swordmaster-road/'·PWA·deploy.yml을 game/로 재조준, 아트 후 라이브 전환), Phaser preload+스프라이트 스왑 훅, Stage1 우선 슬라이스. 적 테마(인간 vs 고블린) 사용자 확정 대기. 루트 src/ 프로토타입은 보존.
+
 - 2026-07-10 [Claude/Opus] **T2-01 검증 완료 + T2-02 저장 시스템**.
   · **T2-01 최종 검증**: 깨끗한 순환(맵→수련 노드→완주→맵 복귀[t1 done·e1 개방]→간이 노드 e1→s1→r1→e2 연쇄→보스 개방) 실기 확인. (앞선 혼란은 새로고침 없이 드라이버 2회 실행한 상태 섞임.)
   · **T2-02 저장(localStorage `sm_save_v1`, version 1)**: 노드 완료 시 자동저장(current+visited), 부팅 시 이어하기 로드, 구역 진입 시 체크포인트 갱신(패배 복귀 지점), 패배 시 restoreCheckpoint, "처음부터"(2탭) 리셋.

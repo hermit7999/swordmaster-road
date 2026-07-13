@@ -1,6 +1,6 @@
 // INP-06/10/11/12: Router + CancelAll + InputManager 조립 + Debug Snapshot.
 // Raw 이벤트 → (UI Gate → Context → Ownership → Processor) → Command/Event.
-import type { GesturePoint, PointerId } from '../gesture/types.ts';
+import type { PointerId } from '../gesture/types.ts';
 import type {
   DeviceType, InputConfig, InputContext, MoveCommand, RawInputEvent,
 } from './types.ts';
