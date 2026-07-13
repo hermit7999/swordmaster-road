@@ -5,6 +5,12 @@
 
 ---
 
+- 2026-07-13 [Claude] game/ 모바일 실기 피드백 3건 — 멀티터치 수정 + 트윈스틱 UI 가시화 + GPT 아트 프롬프트.
+  · **멀티터치(두 손가락) 근본 원인**: Phaser 기본 터치 포인터 1개 → 왼손 스틱 유지 중 오른손 긋기가 Phaser 레이어(궤적·스틱UI·회피버튼)에서 무시됨. `input: { activePointers: 4 }` 전역 설정으로 해결. 보조: 모바일 빠른 긋기가 min_points 12에 걸려 취소되는 문제 → InputManager config로 8 완화(엔진 기본값 불변).
+  · **트윈스틱 UI**: 이미 구현돼 있었으나 알파 0.14로 폰에서 안 보임 → 우측 검격 이중 링 0.34/0.16, 회피 버튼 0.34, 스틱 활성 0.42로 강화 + **비활성 시에도 좌하단 대기 원 표시**(W0.2/H0.72, 어디 잡는지 보이게).
+  · **GPT 아트 프롬프트**: 사용자가 Inkpunk 화풍 미달 판정, GPT로 생성 예정 → docs/아트_프롬프트_GPT.md 작성(스타일 확립 메시지+참조 첨부법, 주인공1·적12·미니보스5·보스5·배경5 개별 프롬프트, 파일명=preload 키 매핑, 투명 PNG 요구, 저장·적용 절차). 적/보스=왼쪽 보기·주인공=오른쪽 보기 규약 명시.
+  · build OK·테스트 0 실패. 멀티터치는 실기만 검증 가능 → 배포 후 폰 재판정. **주의: game/src/story/DialogueScene.ts에 다른 에이전트 미커밋 변경 존재(§9.4에 따라 안 건드림)** + game/_bridgetest.txt untracked.
+
 - 2026-07-13 [Claude] 신규 엔진(game/) 채택 판단 + 빌드 픽스 + 아트 이식 견적. 사용자 지시: 다른 에이전트가 GDD 기반으로 game/에 만든 로그라이트 아케이드 듀얼 엔진을 실제 게임으로 삼고 우리 아트를 이식.
   · game/ = Phaser 렌더 + 순수 TS 로직(모듈: input/duel/combat/boss/enemy/meta/stage/skill/gesture/growth/story), **npm test 191종 PASS**. "M-D Stage1 완주 빌드"(웨이브→성장3택→미니보스→보스관문→Duel→정산). docs/new_docs에 GDD v0.2~v3.5.
   · **빌드 픽스(배포 가능화)**: game/tsconfig에 allowImportingTsExtensions 추가 + 테스트파일 tsc 제외 + manager.ts 미사용 import 제거 → `npm run build` 통과(dist 생성, Phaser 번들 1.58MB/gzip 372KB). 기존엔 tsc 설정 누락으로 build 깨져 있었음(dev만 됨).

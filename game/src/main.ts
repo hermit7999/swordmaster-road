@@ -171,6 +171,8 @@ class PlayScene extends Phaser.Scene {
       clock: this.clock,
       viewport: { w: window.innerWidth, h: window.innerHeight },
       initialContext: 'gameplay_field',
+      // 모바일 빠른 긋기: pointermove 병합으로 점 수가 적어 min_points 12에 취소됨 → 8로 완화 (실기 2026-07-13)
+      config: { gesture: { min_points: 8, max_duration_ms: 1200 } },
     });
     // 좌수검류: 미러 템플릿 (프로토타입 유파)
     const engine = new GestureEngine(isLefty() ? LEFT_GESTURES : DEFAULT_GESTURES);
@@ -1104,17 +1106,17 @@ class PlayScene extends Phaser.Scene {
     this.touchUiGfx.clear();
     if (this.isTouch) {
       const g = this.touchUiGfx;
-      // 우측 검격 존 가이드 링 (프로토타입: 은은한 이중 링, W*0.75/H*0.6)
-      g.lineStyle(2, 0xc9a86a, 0.14);
+      // 우측 검격 존 가이드 링 (프로토타입 방식·실기 피드백 2026-07-13: 어두운 화면에서 안 보여 알파 강화)
+      g.lineStyle(2.5, 0xc9a86a, 0.34);
       g.strokeCircle(W * 0.75, H * 0.6, 100);
-      g.lineStyle(2, 0xc9a86a, 0.07);
+      g.lineStyle(2, 0xc9a86a, 0.16);
       g.strokeCircle(W * 0.75, H * 0.6, 62);
       // 좌상단 회피 버튼 (원 + « 기호)
       const bx = W * 0.13;
       const by = H * 0.3;
-      g.lineStyle(2, 0xc9a86a, 0.22);
+      g.lineStyle(2, 0xc9a86a, 0.34);
       g.strokeCircle(bx, by, 42);
-      g.lineStyle(3, 0xe6dcc3, 0.4);
+      g.lineStyle(3, 0xe6dcc3, 0.5);
       g.beginPath();
       g.moveTo(bx + 8, by - 12);
       g.lineTo(bx - 6, by);
@@ -1123,10 +1125,10 @@ class PlayScene extends Phaser.Scene {
       g.lineTo(bx + 4, by);
       g.lineTo(bx + 18, by + 12);
       g.strokePath();
-      // 좌측 조이스틱 (터치 중)
+      // 좌측 조이스틱: 비활성 시에도 대기 원 표시(어디를 잡는지 보이게), 터치 중엔 시작점 기준
       const sv = this.stickView;
+      const sr = 62;
       if (sv.active) {
-        const sr = 62;
         let dx = sv.cx - sv.ox;
         let dy = sv.cy - sv.oy;
         const d = Math.hypot(dx, dy);
@@ -1134,10 +1136,15 @@ class PlayScene extends Phaser.Scene {
           dx = (dx / d) * sr;
           dy = (dy / d) * sr;
         }
-        g.lineStyle(3, 0xe6dcc3, 0.32);
+        g.lineStyle(3, 0xe6dcc3, 0.42);
         g.strokeCircle(sv.ox, sv.oy, sr);
-        g.fillStyle(0xe6dcc3, 0.5);
+        g.fillStyle(0xe6dcc3, 0.55);
         g.fillCircle(sv.ox + dx, sv.oy + dy, 20);
+      } else {
+        g.lineStyle(2.5, 0xc9a86a, 0.30);
+        g.strokeCircle(W * 0.2, H * 0.72, sr);
+        g.fillStyle(0xc9a86a, 0.12);
+        g.fillCircle(W * 0.2, H * 0.72, 20);
       }
     }
 
@@ -1272,5 +1279,8 @@ new Phaser.Game({
   height: H,
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   backgroundColor: '#151515',
+  // 멀티터치: Phaser 기본은 터치 포인터 1개 → 왼손 스틱 중 오른손 긋기가 무시됨 (실기 버그 2026-07-13).
+  // 4개로 확장해 이동+검격 동시 조작 지원.
+  input: { activePointers: 4 },
   scene: [TitleScene, PlayScene],
 });
