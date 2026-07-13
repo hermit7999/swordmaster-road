@@ -136,10 +136,21 @@ def nuki(img, tol: int, key_global: bool = False) -> "Image.Image":
     W, H = rgb.size
     work = rgb.copy()
     MARK = (255, 0, 255)
-    cs = [(0, 0), (W - 1, 0), (0, H - 1), (W - 1, H - 1)]
-    bg = tuple(sum(rgb.getpixel(c)[i] for c in cs) // 4 for i in range(3))   # 배경색(모서리 평균)
-    for c in cs:
-        ImageDraw.floodfill(work, c, MARK, thresh=tol)
+    # 시드: 가장자리 촘촘한 링(안쪽 3~4px). 잉크 줄무늬가 배경을 여러 조각으로 나눠도
+    # 테두리에 닿은 모든 배경 조각을 각각 flood-fill로 제거. 피규어 내부(테두리 비접촉)는 보존.
+    step = max(6, W // 40)
+    seeds = []
+    for x in range(3, W - 3, step):
+        seeds += [(x, 3), (x, H - 4)]
+    for y in range(3, H - 3, step):
+        seeds += [(3, y), (W - 4, y)]
+    samp = sorted((rgb.getpixel(p) for p in seeds), key=lambda c: c[0] + c[1] + c[2])
+    bg = samp[len(samp) // 2]   # 밝기 중앙값 = 배경(밝은 크림/회색)
+    for p in seeds:
+        try:
+            ImageDraw.floodfill(work, p, MARK, thresh=tol)
+        except Exception:
+            pass
     rgba = rgb.convert("RGBA")
     wp = work.load(); rp = rgba.load()
     gtol = tol * 1.6
@@ -155,6 +166,28 @@ def nuki(img, tol: int, key_global: bool = False) -> "Image.Image":
         x1 = min(W, bbox[2] + pad); y1 = min(H, bbox[3] + pad)
         rgba = rgba.crop((x0, y0, x1, y1))
     return rgba
+
+
+_REMBG = None
+def matte(img, mode: str, tol: int, key_global: bool):
+    """배경 제거: 'rembg'(AI 매팅, 잉크 스플래터 배경에 견고) 또는 'corner'(모서리 flood)."""
+    from PIL import Image
+    if mode == "rembg":
+        global _REMBG
+        try:
+            from rembg import remove, new_session
+            if _REMBG is None:
+                _REMBG = new_session("u2net")
+            cut = remove(img.convert("RGBA"), session=_REMBG)
+            bbox = cut.getbbox()
+            if bbox:
+                pad = 6
+                cut = cut.crop((max(0, bbox[0] - pad), max(0, bbox[1] - pad),
+                                min(cut.width, bbox[2] + pad), min(cut.height, bbox[3] + pad)))
+            return cut
+        except Exception as e:
+            print("[matte] rembg 불가 → 모서리 누끼로 대체:", e)
+    return nuki(img, tol, key_global=key_global)
 
 
 # ---------------- 생성 ----------------
@@ -201,7 +234,8 @@ def main():
     ap.add_argument("--guidance", type=float, default=None, help="미지정 시 모드별 기본(LCM/인페인트 1.8, txt2img 7.0)")
     ap.add_argument("--bg-color", default="58,58,66", help="init/단색배경 R,G,B")
     ap.add_argument("--nuki-tol", type=int, default=52, help="누끼 flood-fill 허용오차")
-    ap.add_argument("--key-global", action="store_true", help="배경색 전역 제거(헤일로 제거, 캐릭터 침식 주의)")
+    ap.add_argument("--matte", default="rembg", choices=["rembg", "corner"], help="배경 제거 방식(기본 rembg=AI 매팅)")
+    ap.add_argument("--key-global", action="store_true", help="corner 매팅 시 배경색 전역 제거(헤일로 제거)")
     ap.add_argument("--no-tone", action="store_true", help="톤 매칭 후처리 끄기")
     ap.add_argument("--sat", type=float, default=0.5, help="톤: 채도 배율(<1 낮춤)")
     ap.add_argument("--bright", type=float, default=0.86, help="톤: 밝기 배율(<1 어둡게)")
@@ -307,7 +341,7 @@ def main():
             dt = time.time() - t
             raw_path = RAW_DIR / f"{args.name}{tag}.png"
             out.save(raw_path)
-            cut = nuki(out, args.nuki_tol, key_global=args.key_global)
+            cut = matte(out, args.matte, args.nuki_tol, args.key_global)
             nuki_path = NUKI_DIR / f"{args.name}{tag}.webp"
             cut.save(nuki_path, "WEBP", quality=92, method=6)
             vram = torch.cuda.max_memory_allocated() / 1e9

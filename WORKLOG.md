@@ -17,6 +17,12 @@
   · 적/보스: createEnemyView·spawnBoss에 'enemy_<id>'·'boss_<id>' 스프라이트 스왑(파일 생기면 자동 점등, 지금은 도형). game/public/art/에 hero.webp(=hero_idle_test)·bg_forest.webp 배치.
   · npm run build 통과(33모듈·4.7s). 라이브 픽셀은 환경 한계로 미확인 — 사용자 로컬 실행이 실검. 다음: Stage1 인간 로스터 생성(잡병·창병·들개·궁수·쾌검사·방패병 + 산적두목 + 갈퇴 + 산길 배경)→public/art 투입→preload 등록.
 
+- 2026-07-13 [Claude] Stage1 인간 로스터 7종 생성·이식 + 매팅 rembg 전환. 화풍 통일 성공.
+  · 생성(Inkpunk·톤 sat0.65·448×576 세로=전신 확보·no-ip): enemy_soldier/spear/hound/swift/shield + boss_mini_captain(산적두목)/boss_boss_veteran(갈퇴). 비교샷(tools/out/stage1_cast.png)에서 주인공 포함 8인 다크판타지 잉크로 완전 통일 — 같은 필드 자연스러움.
+  · **매팅 교훈**: Inkpunk 배경(밝은 크림+테두리+잉크 스플래터)은 모서리 flood/전역키로 안 걷힘(헤일로 or 피규어 침식). → **rembg(AI 매팅) 채택** = 깨끗. gen_asset에 --matte(기본 rembg) 추가, corner는 폴백. (rembg는 modelfit venv에 기설치, 공유 numpy 무영향.)
+  · game/src/main.ts preload에 7종 등록, game/public/art에 webp 배치. npm run build 통과. bodySprite 스왑으로 적/보스 자동 점등.
+  · 미완: 산길 전용 배경(현재 bg_forest 대용)·나머지 스테이지(2~5) 로스터 ~20종·배포 배관·라이브 전환. 인게임 픽셀은 사용자 로컬 실검.
+
 - 2026-07-10 [Claude/Opus] **T2-01 검증 완료 + T2-02 저장 시스템**.
   · **T2-01 최종 검증**: 깨끗한 순환(맵→수련 노드→완주→맵 복귀[t1 done·e1 개방]→간이 노드 e1→s1→r1→e2 연쇄→보스 개방) 실기 확인. (앞선 혼란은 새로고침 없이 드라이버 2회 실행한 상태 섞임.)
   · **T2-02 저장(localStorage `sm_save_v1`, version 1)**: 노드 완료 시 자동저장(current+visited), 부팅 시 이어하기 로드, 구역 진입 시 체크포인트 갱신(패배 복귀 지점), 패배 시 restoreCheckpoint, "처음부터"(2탭) 리셋.

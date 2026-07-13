@@ -149,8 +149,11 @@ class PlayScene extends Phaser.Scene {
     // 아트 이식: public/art/*.webp 를 텍스처로. 파일 없으면 도형 fallback(bodySprite가 처리).
     this.load.image('hero', 'art/hero.webp');
     this.load.image('bg_forest', 'art/bg_forest.webp');
-    // 적/보스 스프라이트는 생성되는 대로 추가:
-    // this.load.image('enemy_soldier', 'art/enemy_soldier.webp'); ... this.load.image('boss_boss_veteran', ...);
+    // Stage 1 인간 로스터(Inkpunk 생성)
+    for (const k of ['enemy_soldier', 'enemy_spear', 'enemy_hound', 'enemy_swift', 'enemy_shield',
+                     'boss_mini_captain', 'boss_boss_veteran']) {
+      this.load.image(k, `art/${k}.webp`);
+    }
   }
 
   /** 텍스처 있으면 하단중앙 앵커 스프라이트(목표 높이로 스케일), 없으면 null(도형 fallback). */
