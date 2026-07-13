@@ -7,7 +7,7 @@ import { realClock } from './input/core.ts';
 import { GesturePipeline, type SkillResolved } from './game/pipeline.ts';
 import { GestureEngine } from './gesture/engine.ts';
 import { DEFAULT_GESTURES, LEFT_GESTURES } from './gesture/templates.ts';
-import { DialogueScene } from './story/DialogueScene.ts';
+// import { DialogueScene } from './story/DialogueScene.ts'; // 오프닝 임시 우회 (안정화 후 재연결)
 import { SkillExecutor } from './skill/machine.ts';
 import { getSkill } from './skill/data.ts';
 import {
@@ -145,6 +145,23 @@ class PlayScene extends Phaser.Scene {
     super('play');
   }
 
+  preload(): void {
+    // 아트 이식: public/art/*.webp 를 텍스처로. 파일 없으면 도형 fallback(bodySprite가 처리).
+    this.load.image('hero', 'art/hero.webp');
+    this.load.image('bg_forest', 'art/bg_forest.webp');
+    // 적/보스 스프라이트는 생성되는 대로 추가:
+    // this.load.image('enemy_soldier', 'art/enemy_soldier.webp'); ... this.load.image('boss_boss_veteran', ...);
+  }
+
+  /** 텍스처 있으면 하단중앙 앵커 스프라이트(목표 높이로 스케일), 없으면 null(도형 fallback). */
+  private bodySprite(key: string, targetH: number, footY: number, faceRight: boolean): Phaser.GameObjects.Sprite | null {
+    if (!this.textures.exists(key)) return null;
+    const img = this.textures.get(key).getSourceImage() as HTMLImageElement;
+    const s = this.add.sprite(0, footY, key).setOrigin(0.5, 1).setFlipX(faceRight);   // 아트 기본=왼쪽 보기
+    s.setScale(targetH / img.height);
+    return s;
+  }
+
   create(): void {
     const seq = new SequenceSource();
     this.mgr = new InputManager({
@@ -169,6 +186,12 @@ class PlayScene extends Phaser.Scene {
     const worldW = STAGE_1.world_width * UNIT;
     this.cameras.main.setBounds(0, 0, worldW, H);
     this.add.rectangle(worldW / 2, GROUND_Y + 30, worldW, 2, 0x444444);
+    // 배경: 잉크 배경(있으면) 뒤에 깔고 패럴랙스. 없으면 기둥만.
+    if (this.textures.exists('bg_forest')) {
+      const bh = this.textures.get('bg_forest').getSourceImage().height as number;
+      this.add.tileSprite(worldW / 2, GROUND_Y - 90, worldW, bh, 'bg_forest')
+        .setDepth(-20).setScrollFactor(0.45).setAlpha(0.9);
+    }
     // 배경 기둥 (진행감)
     for (let x = 300; x < worldW; x += 260) {
       this.add.rectangle(x, GROUND_Y - 40 - (x % 3) * 25, 14, 140 + (x % 5) * 30, 0x2a2a2a).setDepth(-10);
@@ -190,6 +213,9 @@ class PlayScene extends Phaser.Scene {
     const arm = this.add.rectangle(4, 0, 12, 5, 0xd8c8a8).setOrigin(0, 0.5);
     this.armPivot.add([arm, sword, swordTip, guard]);
     this.player = this.add.container(160, GROUND_Y, [this.bodyRect, head, this.armPivot]);
+    // 아트 이식: 주인공 스프라이트(있으면) — 몸/머리 도형 숨기고 검(armPivot)은 위에 남겨 스윙 유지
+    const heroSpr = this.bodySprite('hero', 72, 24, true);
+    if (heroSpr) { this.bodyRect.setAlpha(0); head.setAlpha(0); this.player.addAt(heroSpr, 0); }
     this.cameras.main.startFollow(this.player, true, 0.12, 0);
     this.cameras.main.setFollowOffset(-120, 0);
 
@@ -198,10 +224,10 @@ class PlayScene extends Phaser.Scene {
     // 터치 기기면 첫 터치 전부터 조작 UI 표시 (실기 버그 2026-07-12: 로드 직후 안 보임)
     this.isTouch = (navigator.maxTouchPoints ?? 0) > 0 || 'ontouchstart' in window;
     if (this.isTouch) {
-      this.add.text(W * 0.22, H * 0.52, '← 왼손\n이동·점프', { fontFamily: FONT, fontSize: '15px', color: '#c9a86a', align: 'center' })
-        .setOrigin(0.5).setAlpha(0.4).setDepth(74).setScrollFactor(0);
-      this.add.text(W * 0.72, H * 0.55, '오른손\n검격', { fontFamily: FONT, fontSize: '15px', color: '#c9a86a', align: 'center' })
-        .setOrigin(0.5).setAlpha(0.4).setDepth(74).setScrollFactor(0);
+      this.add.text(W * 0.2, H * 0.85, '왼손 이동·점프', { fontFamily: FONT, fontSize: '13px', color: '#c9a86a', align: 'center' })
+        .setOrigin(0.5).setAlpha(0.3).setDepth(74).setScrollFactor(0);
+      this.add.text(W * 0.75, H * 0.6, '검격', { fontFamily: FONT, fontSize: '13px', color: '#c9a86a', align: 'center' })
+        .setOrigin(0.5).setAlpha(0.28).setDepth(74).setScrollFactor(0);
     }
 
     // 트윈스틱 시각화 + 터치 회피 버튼 (프로토타입 acDrawControls 이식)
@@ -411,7 +437,11 @@ class PlayScene extends Phaser.Scene {
     const poiseBar = this.add.rectangle(-25, -35, 50, 3, 0xffaa00).setOrigin(0, 0.5);
     poiseBar.width = 0;
     const label = this.add.text(0, -56, ai.def.name, { fontFamily: FONT, fontSize:'11px', color: '#ccc' }).setOrigin(0.5);
-    const root = this.add.container(c.x * UNIT, GROUND_Y, [aura, bodyR, hpBg, hpBar, poiseBar, label]);
+    const spr = this.bodySprite('enemy_' + id, small ? 74 : 104, small ? 4 : 26, false);   // 아트 있으면 교체
+    if (spr) bodyR.setAlpha(0);
+    const root = this.add.container(c.x * UNIT, GROUND_Y, spr
+      ? [aura, spr, bodyR, hpBg, hpBar, poiseBar, label]
+      : [aura, bodyR, hpBg, hpBar, poiseBar, label]);
     this.units.push({ c, root, body: bodyR, aura, hpBar, poiseBar, ai });
   }
 
@@ -441,7 +471,11 @@ class PlayScene extends Phaser.Scene {
     const poiseBar = this.add.rectangle(-40, -49, 80, 4, 0xffaa00).setOrigin(0, 0.5);
     poiseBar.width = 0;
     const label = this.add.text(0, -74, def.name, { fontFamily: FONT, fontSize:'13px', color: '#ffd0a0' }).setOrigin(0.5);
-    const root = this.add.container(c.x * UNIT, GROUND_Y, [aura, bodyR, hpBg, hpBar, poiseBar, label]);
+    const spr = this.bodySprite('boss_' + bossId, isMini ? 112 : 138, 30, false);   // 아트 있으면 교체
+    if (spr) bodyR.setAlpha(0);
+    const root = this.add.container(c.x * UNIT, GROUND_Y, spr
+      ? [aura, spr, bodyR, hpBg, hpBar, poiseBar, label]
+      : [aura, bodyR, hpBg, hpBar, poiseBar, label]);
     this.bossView = { c, root, body: bodyR, aura, hpBar, poiseBar };
 
     // 등장 연출 (P12 §2: 보스 풀샷)
@@ -1067,11 +1101,11 @@ class PlayScene extends Phaser.Scene {
     this.touchUiGfx.clear();
     if (this.isTouch) {
       const g = this.touchUiGfx;
-      // 우측 검격 존 가이드 링 (더 진하게 — 실기 가시성)
-      g.lineStyle(2.5, 0xc9a86a, 0.3);
-      g.strokeCircle(W * 0.72, H * 0.55, 118);
-      g.lineStyle(2, 0xc9a86a, 0.16);
-      g.strokeCircle(W * 0.72, H * 0.55, 118 * 0.62);
+      // 우측 검격 존 가이드 링 (프로토타입: 은은한 이중 링, W*0.75/H*0.6)
+      g.lineStyle(2, 0xc9a86a, 0.14);
+      g.strokeCircle(W * 0.75, H * 0.6, 100);
+      g.lineStyle(2, 0xc9a86a, 0.07);
+      g.strokeCircle(W * 0.75, H * 0.6, 62);
       // 좌상단 회피 버튼 (원 + « 기호)
       const bx = W * 0.13;
       const by = H * 0.3;
@@ -1212,14 +1246,8 @@ class TitleScene extends Phaser.Scene {
       this.tweens.add({ targets: this.titleText, y: this.titleText.y - 14, angle: -2, alpha: 0.9, duration: 300 });
       this.cameras.main.fadeOut(450, 0, 0, 0);
     });
-    // 프롤로그를 이미 봤으면 건너뛰고 바로 게임 (반복 플레이 배려 — 프로토타입 seenDialogues)
-    let seen = false;
-    try {
-      seen = localStorage.getItem('sm.prologue.v1') === '1';
-    } catch {
-      /* 무시 */
-    }
-    this.time.delayedCall(700, () => this.scene.start(seen ? 'play' : 'dialogue'));
+    // 오프닝(DialogueScene) 임시 우회 — game 안정 부팅 우선. 오프닝은 안정화 후 재연결.
+    this.time.delayedCall(700, () => this.scene.start('play'));
   }
 
   override update(): void {
@@ -1241,5 +1269,5 @@ new Phaser.Game({
   height: H,
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   backgroundColor: '#151515',
-  scene: [TitleScene, DialogueScene, PlayScene],
+  scene: [TitleScene, PlayScene],
 });

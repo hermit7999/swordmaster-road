@@ -11,6 +11,12 @@
   · **아트 견적**: 렌더가 100% Phaser 도형 플레이스홀더(load.image 0). 필요 아트 = 주인공1 + 적12(잡병·창병·들개·궁수·쾌검사·방패병·쌍검사·중갑귀·광전사·주술사·그림자검사·정예기사) + 미니보스5(산적두목·사냥꾼·쌍둥이검사·파성귀·검문수문장) + 보스5(갈퇴·홍련무희·철벽거암·그림자무영·검성흑월) + 배경5(산길·대나무숲·성·…) ≈ 28캐릭터+5배경. 신 로스터는 인간형(우리 기존 고블린과 1:1 매핑 안 됨→신규 생성). Inkpunk 파이프라인으로 생성 가능(몬스터·주인공 일관성 실증됨).
   · 미완/대기: 배포 배관(base '/swordmaster-road/'·PWA·deploy.yml을 game/로 재조준, 아트 후 라이브 전환), Phaser preload+스프라이트 스왑 훅, Stage1 우선 슬라이스. 적 테마(인간 vs 고블린) 사용자 확정 대기. 루트 src/ 프로토타입은 보존.
 
+- 2026-07-13 [Claude] game/ Phaser 아트 통합 메커니즘 + 주인공·배경 이식(1차 슬라이스). 사용자: 추천대로(인간 로스터, Stage1 먼저).
+  · game/src/main.ts에 preload() + bodySprite() 헬퍼 추가: 텍스처 있으면 하단중앙 앵커 스프라이트(목표 높이 스케일·flipX로 좌우), 없으면 기존 도형 fallback(무중단).
+  · 주인공: hero 스프라이트를 player 컨테이너에 삽입(몸/머리 도형 숨김, 검 armPivot은 위에 남겨 스윙 유지). player.setScale(facing,1) 플립과 정합 위해 flipX=true(아트=왼쪽 기본→오른쪽 전방). 배경: bg_forest 타일스프라이트 패럴랙스(scrollFactor .45, depth -20).
+  · 적/보스: createEnemyView·spawnBoss에 'enemy_<id>'·'boss_<id>' 스프라이트 스왑(파일 생기면 자동 점등, 지금은 도형). game/public/art/에 hero.webp(=hero_idle_test)·bg_forest.webp 배치.
+  · npm run build 통과(33모듈·4.7s). 라이브 픽셀은 환경 한계로 미확인 — 사용자 로컬 실행이 실검. 다음: Stage1 인간 로스터 생성(잡병·창병·들개·궁수·쾌검사·방패병 + 산적두목 + 갈퇴 + 산길 배경)→public/art 투입→preload 등록.
+
 - 2026-07-10 [Claude/Opus] **T2-01 검증 완료 + T2-02 저장 시스템**.
   · **T2-01 최종 검증**: 깨끗한 순환(맵→수련 노드→완주→맵 복귀[t1 done·e1 개방]→간이 노드 e1→s1→r1→e2 연쇄→보스 개방) 실기 확인. (앞선 혼란은 새로고침 없이 드라이버 2회 실행한 상태 섞임.)
   · **T2-02 저장(localStorage `sm_save_v1`, version 1)**: 노드 완료 시 자동저장(current+visited), 부팅 시 이어하기 로드, 구역 진입 시 체크포인트 갱신(패배 복귀 지점), 패배 시 restoreCheckpoint, "처음부터"(2탭) 리셋.
